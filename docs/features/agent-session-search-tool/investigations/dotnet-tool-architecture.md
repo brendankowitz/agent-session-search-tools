@@ -6,7 +6,7 @@
 
 ## Approach
 
-Build a .NET 10 global tool (`dotnet tool install -g chats`) that provides:
+Build a .NET 10 global tool (`dotnet tool install -g agent-journal`) that provides:
 
 ### Core Architecture
 
@@ -90,27 +90,27 @@ public interface IAgentConnector
 
 ```bash
 # Index all supported agents
-chats index [--agent <type>] [--watch]
+aj index [--agent <type>] [--watch]
 
 # Search with context
-chats search "authentication" [--mode lexical|semantic|hybrid] 
+aj search "authentication" [--mode lexical|semantic|hybrid] 
     [--context 3] [--agent <type>] [--project <path>]
     [--robot]  # JSON output for agents
 
 # Navigate results
-chats search "auth" --context 3 --offset 0
-chats search "auth" --context 3 --offset 3  # next page
+aj search "auth" --context 3 --offset 0
+aj search "auth" --context 3 --offset 3  # next page
 
 # Export conversation
-chats export <session-id> [--format html|md|json] [--output <path>]
+aj export <session-id> [--format html|md|json] [--output <path>]
 
 # Summarize search results
-chats search "error handling" --summarize [--model <name>]
+aj search "error handling" --summarize [--model <name>]
 
 # Configuration
-chats config show
-chats config set index.path ~/.chats/index
-chats config agents list
+aj config show
+aj config set index.path ~/.agent-journal/index
+aj config agents list
 ```
 
 ### Technology Stack
@@ -136,12 +136,12 @@ chats config agents list
 ### Data Storage
 
 ```
-~/.chats/
+~/.agent-journal/
 ├── config.toml                 # User configuration
-├── agent-search.db            # SQLite: sessions, messages metadata
+├── agent-journal.db           # SQLite: sessions, messages metadata
 ├── lucene-index/              # Full-text search index
 ├── vector-index/
-│   └── index-minilm-384.cvvi  # Vector embeddings (if ONNX model present)
+│   └── index-minilm-384.ajvi  # Vector embeddings (if ONNX model present)
 └── models/                    # Optional ONNX models
     ├── model.onnx
     ├── tokenizer.json
@@ -150,9 +150,9 @@ chats config agents list
     └── tokenizer_config.json
 ```
 
-### CVVI Vector Index Format (Deep Dive)
+### AJVI Vector Index Format (Deep Dive)
 
-The `.cvvi` (Chats Vector Index) format is a custom binary format for storing semantic embeddings. It's inspired by the `cass` project but adapted for .NET.
+The `.ajvi` (Agent Journal Vector Index) format is a custom binary format for storing semantic embeddings. It's inspired by the `cass` project but adapted for .NET.
 
 #### Why a Custom Format?
 
@@ -163,7 +163,7 @@ The `.cvvi` (Chats Vector Index) format is a custom binary format for storing se
 | **SQLite + BLOB** | Poor performance for similarity search |
 | **JSON/MessagePack** | Slow parsing, no memory-mapping |
 
-**CVVI advantages:**
+**AJVI advantages:**
 - **Zero dependencies**: No external vector DB needed
 - **Memory-mapped**: Load 100K vectors in <10ms without copying to RAM
 - **Single file**: Easy backup, sync, portable
@@ -177,7 +177,7 @@ The `.cvvi` (Chats Vector Index) format is a custom binary format for storing se
 ├─────────────────────────────────────────────────────────────────────────┤
 │ Offset │ Size  │ Field           │ Description                          │
 ├────────┼───────┼─────────────────┼──────────────────────────────────────┤
-│ 0      │ 4     │ Magic           │ "CVVI" ASCII (0x43565649)            │
+│ 0      │ 4     │ Magic           │ "AJVI" ASCII (0x494A5641)            │
 │ 4      │ 1     │ Version         │ Format version (currently 1)         │
 │ 5      │ 1     │ Precision       │ 0=F32 (4 bytes), 1=F16 (2 bytes)     │
 │ 6      │ 2     │ Dimension       │ Vector dimension (384 for MiniLM)    │
@@ -269,11 +269,11 @@ Step 4: JOIN WITH METADATA
 
 ```csharp
 /// <summary>
-/// Memory-mapped CVVI vector index for fast similarity search.
+/// Memory-mapped AJVI vector index for fast similarity search.
 /// </summary>
-public sealed class CvviIndex : IDisposable
+public sealed class AjviIndex : IDisposable
 {
-    private const uint MagicNumber = 0x49565643; // "CVVI" little-endian
+    private const uint MagicNumber = 0x494A5641; // "AJVI" little-endian
     private const int HeaderSize = 32;
     
     private readonly MemoryMappedFile _mmf;
@@ -286,7 +286,7 @@ public sealed class CvviIndex : IDisposable
     public static CvviIndex Open(string path)
     {
         var mmf = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
-        return new CvviIndex(mmf);
+        return new AjviIndex(mmf);
     }
     
     /// <summary>
@@ -415,7 +415,7 @@ For >100K vectors, we can add approximate search without changing the file forma
 | **IVF** | O(√n) | ~90% | Cluster vectors, search subset |
 | **PQ** | O(n) faster | ~85% | Quantize to 8-bit sub-vectors |
 
-The CVVI format stores raw vectors, so any index structure can be built on top.
+The AJVI format stores raw vectors, so any index structure can be built on top.
 
 ## Tradeoffs
 
@@ -517,7 +517,7 @@ Format: JSONL with typed events:
 3. ONNX Runtime is first-party Microsoft with excellent cross-platform support
 4. C# productivity enables faster iteration on features
 5. Plugin architecture allows incremental agent support
-6. Easy distribution via NuGet (`dotnet tool install -g chats`)
+6. Easy distribution via NuGet (`dotnet tool install -g agent-journal`)
 
 **Next Steps**:
 1. Create project structure with `dotnet new tool`

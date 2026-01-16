@@ -58,6 +58,7 @@ A **.NET 10 global tool** that combines the best of:
 | Investigation | Status | Summary |
 |--------------|--------|---------|
 | [dotnet-tool-architecture](investigations/dotnet-tool-architecture.md) | ✅ Recommended | .NET 10 global tool with Lucene.NET search, ONNX vectors, plugin connectors |
+| [session-format-comparison](investigations/session-format-comparison.md) | ✅ Complete | Verified JSONL schemas for Copilot CLI & Claude Code with unified model mapping |
 
 ## Decision
 *No ADR yet - investigations in progress*
