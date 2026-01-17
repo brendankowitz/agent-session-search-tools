@@ -1,0 +1,69 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**'
+      - '*.slnx'
+      - '.github/workflows/**'
+
+jobs:
+  build:
+    name: Build and Test
+    uses: ./.github/workflows/build.yml
+    with:
+      dotnet-version: '10.0.x'
+      configuration: 'Debug'
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore AgentJournal.slnx
+
+      - name: Format check
+        run: dotnet format AgentJournal.slnx --verify-no-changes --verbosity diagnostic
+
+      - name: Build with warnings as errors
+        run: dotnet build AgentJournal.slnx --configuration Debug /p:TreatWarningsAsErrors=true
+
+  size-check:
+    name: Binary Size Check
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish
+        run: dotnet publish src/AgentJournal/AgentJournal.csproj --configuration Release --output ./publish
+
+      - name: Check binary size
+        run: |
+          SIZE=$(du -sb ./publish | cut -f1)
+          SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+          echo "Published size: ${SIZE_MB} MB"
+          echo "::notice::Published binary size is ${SIZE_MB} MB"

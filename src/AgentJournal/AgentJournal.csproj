@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/runtime:10.0</ContainerBaseImage>
+    <ContainerRepository>agent-journal</ContainerRepository>
+
+    <!-- NuGet Package Properties -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>agent-journal</ToolCommandName>
+    <PackageType>McpServer</PackageType>
+    <PackageId>AgentJournal</PackageId>
+    <Version>1.0.3</Version>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+    <Authors>Agent Journal Contributors</Authors>
+    <Description>A .NET global tool and MCP server for indexing, searching, and exporting AI agent conversation sessions. Supports Claude Code, GitHub Copilot CLI, with hybrid lexical/semantic search and temporal decay.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/your-org/agent-journal</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/your-org/agent-journal</PackageProjectUrl>
+    <PackageTags>mcp;ai-agents;claude;copilot;session-search;knowledge-management;model-context-protocol</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentJournal.Core\AgentJournal.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../.mcp/server.json" Pack="true" PackagePath="/.mcp/" Condition="Exists('../../.mcp/server.json')" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,209 @@
+{
+  "id": "demo-session",
+  "agentType": "Complex Coding Agent",
+  "projectPath": "E:\\data\\src\\agent-session-search-tools",
+  "gitBranch": "main",
+  "agentVersion": "1.0.0",
+  "startedAt": "2026-01-16T15:34:01.8826875-08:00",
+  "endedAt": "2026-01-16T15:59:01.8826876-08:00",
+  "summary": "Successfully implemented HTML and Markdown exporters with Scriban templates, theme support, and comprehensive test coverage",
+  "messages": [
+    {
+      "id": "msg1",
+      "sessionId": "demo-session",
+      "role": 0,
+      "content": "I need to implement HTML and Markdown exporters for an agent journal system.",
+      "rawContent": null,
+      "timestamp": "2026-01-16T15:39:01.8788354-08:00",
+      "parentId": null,
+      "model": null,
+      "toolCalls": null,
+      "hasToolCalls": false,
+      "toolCallCount": 0,
+      "isResponse": false,
+      "contentLength": 76
+    },
+    {
+      "id": "msg2",
+      "sessionId": "demo-session",
+      "role": 1,
+      "content": "I\u0027ll help you implement both exporters. Let me start by creating the HTML exporter with Scriban templates.\n\nKey features:\n- Dark/Light theme support\n- Collapsible tool calls\n- Beautiful, responsive design\n- Self-contained HTML files",
+      "rawContent": null,
+      "timestamp": "2026-01-16T15:40:01.8826378-08:00",
+      "parentId": "msg1",
+      "model": "claude-3-opus",
+      "toolCalls": [
+        {
+          "id": "tool1",
+          "messageId": "msg2",
+          "name": "create",
+          "arguments": "{\u0022path\u0022: \u0022Export/HtmlExporter.cs\u0022}",
+          "result": "Created HtmlExporter.cs with Scriban templates for beautiful, self-contained HTML output",
+          "success": true,
+          "isCompleted": true,
+          "isSuccessful": true,
+          "hasArguments": true,
+          "resultLength": 88
+        },
+        {
+          "id": "tool2",
+          "messageId": "msg2",
+          "name": "create",
+          "arguments": "{\u0022path\u0022: \u0022Export/MarkdownExporter.cs\u0022}",
+          "result": "Created MarkdownExporter.cs with clean markdown formatting",
+          "success": true,
+          "isCompleted": true,
+          "isSuccessful": true,
+          "hasArguments": true,
+          "resultLength": 58
+        }
+      ],
+      "hasToolCalls": true,
+      "toolCallCount": 2,
+      "isResponse": true,
+      "contentLength": 232
+    },
+    {
+      "id": "msg3",
+      "sessionId": "demo-session",
+      "role": 0,
+      "content": "Can you add support for themes in the HTML export?",
+      "rawContent": null,
+      "timestamp": "2026-01-16T15:44:01.8826856-08:00",
+      "parentId": "msg2",
+      "model": null,
+      "toolCalls": null,
+      "hasToolCalls": false,
+      "toolCallCount": 0,
+      "isResponse": true,
+      "contentLength": 50
+    },
+    {
+      "id": "msg4",
+      "sessionId": "demo-session",
+      "role": 1,
+      "content": "I\u0027ve added theme support with dark and light modes. The CSS variables make it easy to customize.\n\nThemes available:\n- Dark mode (default): Professional dark theme\n- Light mode: Clean light theme\n\nYou can configure via ExportOptions.",
+      "rawContent": null,
+      "timestamp": "2026-01-16T15:45:01.8826866-08:00",
+      "parentId": "msg3",
+      "model": "claude-3-opus",
+      "toolCalls": [
+        {
+          "id": "tool3",
+          "messageId": "msg4",
+          "name": "edit",
+          "arguments": "{\u0022path\u0022: \u0022Export/HtmlExporter.cs\u0022, \u0022changes\u0022: \u0022Added theme support\u0022}",
+          "result": "Updated HtmlExporter.cs with theme support (dark/light)",
+          "success": true,
+          "isCompleted": true,
+          "isSuccessful": true,
+          "hasArguments": true,
+          "resultLength": 55
+        }
+      ],
+      "hasToolCalls": true,
+      "toolCallCount": 1,
+      "isResponse": true,
+      "contentLength": 232
+    },
+    {
+      "id": "msg5",
+      "sessionId": "demo-session",
+      "role": 0,
+      "content": "Perfect! Can you also add support for exporting multiple sessions at once?",
+      "rawContent": null,
+      "timestamp": "2026-01-16T15:49:01.8826868-08:00",
+      "parentId": "msg4",
+      "model": null,
+      "toolCalls": null,
+      "hasToolCalls": false,
+      "toolCallCount": 0,
+      "isResponse": true,
+      "contentLength": 74
+    },
+    {
+      "id": "msg6",
+      "sessionId": "demo-session",
+      "role": 1,
+      "content": "Done! Both exporters now support:\n1. Single session export\n2. Multiple sessions export (creates an index/TOC)\n3. Export to file\n\nAll tests passing! \u2705",
+      "rawContent": null,
+      "timestamp": "2026-01-16T15:54:01.8826874-08:00",
+      "parentId": "msg5",
+      "model": "claude-3-opus",
+      "toolCalls": [
+        {
+          "id": "tool4",
+          "messageId": "msg6",
+          "name": "powershell",
+          "arguments": "{\u0022command\u0022: \u0022dotnet test\u0022}",
+          "result": "Test Run Successful.\nTotal tests: 11\n     Passed: 11\n Total time: 0.8638 Seconds",
+          "success": true,
+          "isCompleted": true,
+          "isSuccessful": true,
+          "hasArguments": true,
+          "resultLength": 80
+        }
+      ],
+      "hasToolCalls": true,
+      "toolCallCount": 1,
+      "isResponse": true,
+      "contentLength": 149
+    }
+  ],
+  "duration": "00:25:00.0000001",
+  "isActive": false,
+  "messageCount": 6,
+  "userMessageCount": 3,
+  "assistantMessageCount": 3,
+  "allToolCalls": [
+    {
+      "id": "tool1",
+      "messageId": "msg2",
+      "name": "create",
+      "arguments": "{\u0022path\u0022: \u0022Export/HtmlExporter.cs\u0022}",
+      "result": "Created HtmlExporter.cs with Scriban templates for beautiful, self-contained HTML output",
+      "success": true,
+      "isCompleted": true,
+      "isSuccessful": true,
+      "hasArguments": true,
+      "resultLength": 88
+    },
+    {
+      "id": "tool2",
+      "messageId": "msg2",
+      "name": "create",
+      "arguments": "{\u0022path\u0022: \u0022Export/MarkdownExporter.cs\u0022}",
+      "result": "Created MarkdownExporter.cs with clean markdown formatting",
+      "success": true,
+      "isCompleted": true,
+      "isSuccessful": true,
+      "hasArguments": true,
+      "resultLength": 58
+    },
+    {
+      "id": "tool3",
+      "messageId": "msg4",
+      "name": "edit",
+      "arguments": "{\u0022path\u0022: \u0022Export/HtmlExporter.cs\u0022, \u0022changes\u0022: \u0022Added theme support\u0022}",
+      "result": "Updated HtmlExporter.cs with theme support (dark/light)",
+      "success": true,
+      "isCompleted": true,
+      "isSuccessful": true,
+      "hasArguments": true,
+      "resultLength": 55
+    },
+    {
+      "id": "tool4",
+      "messageId": "msg6",
+      "name": "powershell",
+      "arguments": "{\u0022command\u0022: \u0022dotnet test\u0022}",
+      "result": "Test Run Successful.\nTotal tests: 11\n     Passed: 11\n Total time: 0.8638 Seconds",
+      "success": true,
+      "isCompleted": true,
+      "isSuccessful": true,
+      "hasArguments": true,
+      "resultLength": 80
+    }
+  ],
+  "toolCallCount": 4
+}

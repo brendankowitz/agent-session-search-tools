@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentJournal.Core/AgentJournal.Core.csproj" />
+    <Project Path="src/AgentJournal.Tests/AgentJournal.Tests.csproj" />
+    <Project Path="src/AgentJournal/AgentJournal.csproj" />
+  </Folder>
+</Solution>

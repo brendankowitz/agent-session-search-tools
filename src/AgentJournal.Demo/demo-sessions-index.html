@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Sessions Export</title>
+    <style>
+        :root { --bg: #1a1a2e; --text: #eee; --card-bg: #16213e; --header-border: #333; --hover-bg: #0f3460; }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: var(--bg); 
+            color: var(--text); 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .header { 
+            border-bottom: 2px solid var(--header-border); 
+            padding-bottom: 1.5rem; 
+            margin-bottom: 2rem; 
+        }
+        .session-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-radius: 12px;
+            border: 1px solid var(--header-border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .session-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            background: var(--hover-bg);
+        }
+        .session-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .session-meta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--header-border);
+            text-align: center;
+            font-size: 0.85rem;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Agent Sessions Export</h1>
+        <p>Total Sessions: 2</p>
+    </div>
+
+    <div class="session-card">
+        <div class="session-title">Complex Coding Agent</div>
+        <div class="session-meta">
+            <span>📅 2026-01-16 15:34</span>
+            <span>💬 6 messages</span>
+            <span>🔧 4 tool calls</span>
+            <span>📁 E:\data\src\agent-session-search-tools</span>
+        </div>
+        <div style="margin-top: 0.75rem; font-size: 0.95rem;">
+            Successfully implemented HTML and Markdown exporters with Scriban templates, theme support, and comprehensive test coverage
+        </div>
+    </div>
+    <div class="session-card">
+        <div class="session-title">Fast Coding Agent</div>
+        <div class="session-meta">
+            <span>📅 2026-01-16 15:34</span>
+            <span>💬 6 messages</span>
+            <span>🔧 4 tool calls</span>
+            <span>📁 E:\data\src\agent-session-search-tools</span>
+        </div>
+        <div style="margin-top: 0.75rem; font-size: 0.95rem;">
+            Successfully implemented HTML and Markdown exporters with Scriban templates, theme support, and comprehensive test coverage
+        </div>
+    </div>
+
+    <div class="footer">
+        Exported on 2026-01-16 15:59:01 | AgentJournal
+    </div>
+</body>
+</html>

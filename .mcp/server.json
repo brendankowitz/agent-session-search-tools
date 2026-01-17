@@ -1,0 +1,27 @@
+{
+  "name": "agent-journal",
+  "description": "A .NET-based MCP server for indexing, searching, and managing AI agent conversation sessions",
+  "version": "1.0.0",
+  "env": {
+    "AGENT_JOURNAL_DATA_PATH": {
+      "required": false,
+      "secret": false,
+      "description": "Custom path for storing databases and indexes (default: ~/.agent-journal)"
+    },
+    "AGENT_JOURNAL_DECAY_HALFLIFE_DAYS": {
+      "required": false,
+      "secret": false,
+      "description": "Half-life in days for knowledge decay (default: 90)"
+    },
+    "AGENT_JOURNAL_DEFAULT_SEARCH_MODE": {
+      "required": false,
+      "secret": false,
+      "description": "Default search mode: lexical, semantic, or hybrid (default: hybrid)"
+    },
+    "AGENT_JOURNAL_MAX_RESULTS": {
+      "required": false,
+      "secret": false,
+      "description": "Maximum search results to return (default: 10)"
+    }
+  }
+}

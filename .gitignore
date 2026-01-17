@@ -416,3 +416,11 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Agent Journal - ONNX models (large binary files)
+models/
+**/models/*.onnx
+**/models/*.bin
+
+# Agent Journal - Local data
+.agent-journal/

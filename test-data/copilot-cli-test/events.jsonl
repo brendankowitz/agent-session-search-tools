@@ -1,0 +1,7 @@
+{"type":"session.start","id":"event-001","parentId":null,"timestamp":"2024-01-15T10:00:00.000Z","data":{"sessionId":"test-session-123","copilotVersion":"1.0.0","startTime":"2024-01-15T10:00:00.000Z"}}
+{"type":"user.message","id":"event-002","parentId":"event-001","timestamp":"2024-01-15T10:00:05.000Z","data":{"content":"Hello, can you help me?","transformedContent":"Hello, can you help me?"}}
+{"type":"assistant.turn_start","id":"event-003","parentId":"event-002","timestamp":"2024-01-15T10:00:06.000Z","data":{}}
+{"type":"assistant.message","id":"event-004","parentId":"event-003","timestamp":"2024-01-15T10:00:10.000Z","data":{"messageId":"msg-001","content":"Sure! Let me check the files.","toolRequests":[{"toolCallId":"tool-001","name":"read_file","arguments":{"path":"test.txt"}}]}}
+{"type":"tool.execution_start","id":"event-005","parentId":"event-004","timestamp":"2024-01-15T10:00:11.000Z","data":{"toolCallId":"tool-001"}}
+{"type":"tool.execution_complete","id":"event-006","parentId":"event-005","timestamp":"2024-01-15T10:00:12.000Z","data":{"toolCallId":"tool-001","success":true,"result":{"content":"File contents here"}}}
+{"type":"assistant.turn_end","id":"event-007","parentId":"event-006","timestamp":"2024-01-15T10:00:13.000Z","data":{}}

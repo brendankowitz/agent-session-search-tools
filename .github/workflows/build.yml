@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: '.NET SDK version'
+        required: false
+        type: string
+        default: '10.0.x'
+      configuration:
+        description: 'Build configuration'
+        required: false
+        type: string
+        default: 'Release'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Restore dependencies
+        run: dotnet restore AgentJournal.slnx
+
+      - name: Build
+        run: dotnet build AgentJournal.slnx --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: Test
+        run: dotnet test AgentJournal.slnx --configuration ${{ inputs.configuration }} --no-build --verbosity normal
+
+      - name: Publish
+        run: dotnet publish src/AgentJournal/AgentJournal.csproj --configuration ${{ inputs.configuration }} --no-build --output ./publish
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-journal-${{ inputs.configuration }}-${{ github.sha }}
+          path: ./publish
+          retention-days: 7
