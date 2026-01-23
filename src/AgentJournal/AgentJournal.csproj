@@ -13,14 +13,13 @@
     <ToolCommandName>agent-journal</ToolCommandName>
     <PackageType>McpServer</PackageType>
     <PackageId>AgentJournal</PackageId>
-    <Version>1.0.4</Version>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <Authors>Agent Journal Contributors</Authors>
     <Description>A .NET global tool and MCP server for indexing, searching, and exporting AI agent conversation sessions. Supports Claude Code, GitHub Copilot CLI, with hybrid lexical/semantic search and temporal decay.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/your-org/agent-journal</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/your-org/agent-journal</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/brendankowitz/agent-session-search-tools</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/brendankowitz/agent-session-search-tools</PackageProjectUrl>
     <PackageTags>mcp;ai-agents;claude;copilot;session-search;knowledge-management;model-context-protocol</PackageTags>
   </PropertyGroup>
 

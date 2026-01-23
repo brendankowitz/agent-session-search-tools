@@ -73,8 +73,8 @@ dotnet tool install -g agent-journal
 ### From Source
 
 ```bash
-git clone https://github.com/your-org/agent-journal.git
-cd agent-journal
+git clone https://github.com/brendankowitz/agent-session-search-tools.git
+cd agent-session-search-tools
 dotnet pack src/AgentJournal -c Release
 dotnet tool install -g --add-source src/AgentJournal/nupkg AgentJournal
 ```
@@ -324,43 +324,16 @@ src/
 
 ---
 
-## 🛠️ Development
-
-### Prerequisites
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Optional: ONNX Runtime for semantic search
-
-### Build & Test
-
-```bash
-# Build
-dotnet build
-
-# Run tests
-dotnet test
-
-# Run locally
-dotnet run --project src/AgentJournal -- search "test"
-```
-
-### Package
-
-```bash
-dotnet pack src/AgentJournal -c Release
-```
-
----
-
 ## 🤝 Contributing
 
-Contributions are welcome! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+Contributions are welcome!
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes with tests
-4. Ensure `dotnet test` passes
-5. Submit a pull request
+4. Submit a pull request
+
+For development details, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
