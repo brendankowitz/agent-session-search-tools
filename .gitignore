@@ -404,6 +404,10 @@ FodyWeavers.xsd
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 
+# JetBrains Rider
+.idea/
+*.sln.iml
+
 # Local History for Visual Studio Code
 .history/
 
@@ -418,9 +422,15 @@ FodyWeavers.xsd
 *.msp
 
 # Agent Journal - ONNX models (large binary files)
+# Exclude downloaded models directory
 models/
+# Exclude model files except embedded resources
 **/models/*.onnx
 **/models/*.bin
+# But include embedded resources needed for the build
+!src/AgentJournal.Core/Resources/minilm/*.onnx
+!src/AgentJournal.Core/Resources/minilm/*.json
+!src/AgentJournal.Core/Resources/minilm/*.txt
 
 # Agent Journal - Local data
 .agent-journal/

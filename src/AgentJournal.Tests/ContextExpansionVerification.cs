@@ -37,7 +37,7 @@ public class ContextExpansionVerification
         // Match at index 7: should include 5,6,7,8,9 (indices 7-2 to 7+2)
         // Combined (deduplicated): 1,2,3,4,5,6,7,8,9
         Assert.Equal(9, expanded.Count);
-        
+
         // Verify messages are in order
         for (int i = 0; i < expanded.Count; i++)
         {
@@ -131,7 +131,7 @@ public class ContextExpansionVerification
 
         // Assert: Should deduplicate overlapping messages
         Assert.Equal(8, expanded.Count);
-        
+
         // Verify no duplicates
         var contentSet = new HashSet<string>(expanded.Select(m => m.Content));
         Assert.Equal(expanded.Count, contentSet.Count);

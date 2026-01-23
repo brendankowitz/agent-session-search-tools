@@ -34,7 +34,7 @@ public sealed class AjviIndex : IDisposable
     private readonly int _dimensions;
     private readonly int _entrySize;
     private readonly bool _readOnly;
-    
+
     private FileStream? _fileStream;
     private MemoryMappedFile? _memoryMappedFile;
     private MemoryMappedViewAccessor? _accessor;
@@ -125,7 +125,7 @@ public sealed class AjviIndex : IDisposable
         int dimensions;
         VectorPrecision precision;
         long entryCount;
-        
+
         // Read header in a separate scope to release the file handle before OpenFile
         using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
         {
@@ -248,7 +248,7 @@ public sealed class AjviIndex : IDisposable
     public void AddEntry(byte[] contentHash, Guid messageId, byte agentType, long timestamp, ReadOnlySpan<float> vector)
     {
         ThrowIfDisposed();
-        
+
         if (_readOnly)
         {
             throw new InvalidOperationException("Cannot add entries to a read-only index");
@@ -369,7 +369,7 @@ public sealed class AjviIndex : IDisposable
         ValidateIndex(index);
 
         long vectorOffset = GetEntryOffset(index) + ContentHashSize + MessageIdSize + AgentTypeSize + TimestampSize;
-        
+
         float[] vector = new float[_dimensions];
         ReadVector(vectorOffset, vector);
         return vector;
@@ -379,7 +379,7 @@ public sealed class AjviIndex : IDisposable
     {
         if (_accessor == null)
             throw new ObjectDisposedException(nameof(AjviIndex));
-        
+
         if (_precision == VectorPrecision.Float32)
         {
             // Fast path: read entire array at once
@@ -409,7 +409,7 @@ public sealed class AjviIndex : IDisposable
 
         long messageIdOffset = GetEntryOffset(index) + ContentHashSize;
         Span<byte> guidBytes = stackalloc byte[MessageIdSize];
-        
+
         for (int i = 0; i < MessageIdSize; i++)
         {
             guidBytes[i] = _accessor!.ReadByte(messageIdOffset + i);
@@ -486,7 +486,7 @@ public sealed class AjviIndex : IDisposable
         {
             long hashOffset = GetEntryOffset(i);
             _accessor!.ReadArray(hashOffset, entryHash, 0, ContentHashSize);
-            
+
             if (contentHash.SequenceEqual(entryHash))
             {
                 return true;
@@ -522,7 +522,7 @@ public sealed class AjviIndex : IDisposable
             return Array.Empty<(long, float)>();
 
         float[] entryVector = new float[_dimensions];
-        
+
         // Use min-heap to track top-K (smallest score at top)
         var heap = new PriorityQueue<long, float>(topK);
 
@@ -531,7 +531,7 @@ public sealed class AjviIndex : IDisposable
             long vectorOffset = GetEntryOffset(i) + ContentHashSize + MessageIdSize + AgentTypeSize + TimestampSize;
             ReadVector(vectorOffset, entryVector);
             float similarity = TensorPrimitives.Dot(queryVector, entryVector);
-            
+
             if (heap.Count < topK)
             {
                 heap.Enqueue(i, similarity);  // Store actual score
@@ -554,7 +554,7 @@ public sealed class AjviIndex : IDisposable
             heap.TryDequeue(out long idx, out float score);
             results.Add((idx, score));
         }
-        
+
         results.Reverse(); // Highest scores first
         return results;
     }
@@ -571,7 +571,7 @@ public sealed class AjviIndex : IDisposable
     {
         if (index < 0 || index >= _entryCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(index), 
+            throw new ArgumentOutOfRangeException(nameof(index),
                 $"Index {index} is out of range. Valid range is 0 to {_entryCount - 1}");
         }
     }

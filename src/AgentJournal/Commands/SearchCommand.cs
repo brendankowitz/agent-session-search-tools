@@ -72,7 +72,7 @@ public class SearchCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new SearchCommand();
-        
+
         command.SetHandler(async (query, mode, contextCount, maxResults, agentType, project, robot, includeKnowledge) =>
         {
             var configService = serviceProvider.GetRequiredService<ConfigurationService>();
@@ -94,7 +94,7 @@ public class SearchCommand : Command
                 repository,
                 knowledgeRepo,
                 CancellationToken.None);
-        }, 
+        },
         command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing query argument"),
         command.Options[0] as Option<string> ?? throw new InvalidOperationException("Missing mode option"),
         command.Options[1] as Option<int> ?? throw new InvalidOperationException("Missing context option"),
@@ -152,19 +152,19 @@ public class SearchCommand : Command
 
         // Execute session search
         var sessionResults = await searchEngine.SearchAsync(query, searchMode, maxResults, contextCount, ct);
-        
+
         // Filter session results by agent type and project if specified
         var filteredSessionResults = sessionResults.AsEnumerable();
-        
+
         if (!string.IsNullOrWhiteSpace(agentType))
         {
-            filteredSessionResults = filteredSessionResults.Where(r => 
+            filteredSessionResults = filteredSessionResults.Where(r =>
                 r.Session.AgentType.Equals(agentType, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrWhiteSpace(project))
         {
-            filteredSessionResults = filteredSessionResults.Where(r => 
+            filteredSessionResults = filteredSessionResults.Where(r =>
                 r.Session.ProjectPath?.Contains(project, StringComparison.OrdinalIgnoreCase) == true);
         }
 
@@ -301,30 +301,30 @@ public class SearchCommand : Command
         Console.WriteLine($"[{index}] Session: {session.Id}");
         Console.WriteLine($"    Agent: {session.AgentType}");
         Console.WriteLine($"    Score: {result.Score:F2}");
-        
+
         if (!string.IsNullOrWhiteSpace(session.ProjectPath))
         {
             Console.WriteLine($"    Project: {session.ProjectPath}");
         }
-        
+
         Console.WriteLine($"    Started: {session.StartedAt:yyyy-MM-dd HH:mm:ss}");
 
         if (result.MatchingMessages != null && result.MatchingMessages.Count > 0)
         {
             Console.WriteLine($"    Matching messages:");
-            
+
             foreach (var message in result.MatchingMessages.Take(3))
             {
-                var preview = message.Content.Length > 150 
-                    ? message.Content[..150] + "..." 
+                var preview = message.Content.Length > 150
+                    ? message.Content[..150] + "..."
                     : message.Content;
                 Console.WriteLine($"      [{message.Role}] {preview}");
             }
         }
         else if (!string.IsNullOrWhiteSpace(result.Highlight))
         {
-            var preview = result.Highlight.Length > 200 
-                ? result.Highlight[..200] + "..." 
+            var preview = result.Highlight.Length > 200
+                ? result.Highlight[..200] + "..."
                 : result.Highlight;
             Console.WriteLine($"    Preview: {preview}");
         }
@@ -332,7 +332,7 @@ public class SearchCommand : Command
         if (contextCount > 0 && result.MatchingMessages != null && result.MatchingMessages.Count > 0)
         {
             Console.WriteLine($"    Context messages:");
-            
+
             // Get context messages around matches
             var matchedIndices = result.MatchingMessages
                 .Select(m => session.Messages.ToList().IndexOf(m))
@@ -341,7 +341,7 @@ public class SearchCommand : Command
 
             var contextMessages = session.Messages
                 .Select((msg, idx) => (msg, idx))
-                .Where(x => matchedIndices.Any(matchIdx => 
+                .Where(x => matchedIndices.Any(matchIdx =>
                     Math.Abs(x.idx - matchIdx) <= contextCount))
                 .Take(5)
                 .ToList();
@@ -350,8 +350,8 @@ public class SearchCommand : Command
             {
                 var isMatch = matchedIndices.Contains(idx);
                 var marker = isMatch ? "→" : " ";
-                var preview = msg.Content.Length > 100 
-                    ? msg.Content[..100] + "..." 
+                var preview = msg.Content.Length > 100
+                    ? msg.Content[..100] + "..."
                     : msg.Content;
                 Console.WriteLine($"      {marker} [{msg.Role}] {preview}");
             }
@@ -365,12 +365,12 @@ public class SearchCommand : Command
     {
         Console.WriteLine($"[{index}] Knowledge: {entry.Id}");
         Console.WriteLine($"    Score: {result.Score:F2} {RenderDecayBar(result.DecayFactor ?? 1.0)}");
-        
+
         if (entry.Tags.Length > 0)
         {
             Console.WriteLine($"    Tags: {string.Join(", ", entry.Tags)}");
         }
-        
+
         if (!string.IsNullOrWhiteSpace(entry.Project))
         {
             Console.WriteLine($"    Project: {entry.Project}");
@@ -388,12 +388,12 @@ public class SearchCommand : Command
         var contentPreview = !string.IsNullOrWhiteSpace(result.Highlight)
             ? result.Highlight
             : entry.Content;
-            
+
         if (contentPreview.Length > 200)
         {
             contentPreview = contentPreview[..200] + "...";
         }
-        
+
         Console.WriteLine($"    Content: {contentPreview}");
     }
 

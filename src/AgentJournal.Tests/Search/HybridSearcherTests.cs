@@ -26,7 +26,7 @@ public class HybridSearcherTests : IDisposable
     {
         _testLexicalPath = Path.Combine(Path.GetTempPath(), "hybrid-lexical-" + Guid.NewGuid().ToString("N"));
         _testVectorPath = Path.Combine(Path.GetTempPath(), "hybrid-vector-" + Guid.NewGuid().ToString("N"));
-        
+
         _embedder = new HashEmbeddingProvider();
         _lexicalEngine = new LuceneSearchEngine(_testLexicalPath);
         _vectorEngine = new VectorSearchEngine(_testVectorPath, _embedder);
@@ -57,7 +57,7 @@ public class HybridSearcherTests : IDisposable
         // Assert - Should be found by both lexical and semantic search
         var lexicalResults = await _hybridSearcher.SearchAsync("test", SearchMode.Lexical, maxResults: 10);
         var semanticResults = await _hybridSearcher.SearchAsync("test", SearchMode.Semantic, maxResults: 10);
-        
+
         Assert.Single(lexicalResults);
         Assert.Single(semanticResults);
     }
@@ -69,7 +69,7 @@ public class HybridSearcherTests : IDisposable
         await _hybridSearcher.InitializeAsync();
         var session1 = CreateTestSession("session-1", "Lucene full-text search", "BM25 ranking");
         var session2 = CreateTestSession("session-2", "Vector embeddings", "Cosine similarity");
-        
+
         await _hybridSearcher.IndexSessionAsync(session1);
         await _hybridSearcher.IndexSessionAsync(session2);
 
@@ -88,7 +88,7 @@ public class HybridSearcherTests : IDisposable
         await _hybridSearcher.InitializeAsync();
         var session1 = CreateTestSession("session-1", "machine learning algorithms", "neural networks");
         var session2 = CreateTestSession("session-2", "database optimization", "query tuning");
-        
+
         await _hybridSearcher.IndexSessionAsync(session1);
         await _hybridSearcher.IndexSessionAsync(session2);
 
@@ -104,16 +104,16 @@ public class HybridSearcherTests : IDisposable
     {
         // Arrange
         await _hybridSearcher.InitializeAsync();
-        
+
         // Session 1: Strong lexical match, weak semantic match
         var session1 = CreateTestSession("session-1", "Lucene Lucene Lucene search", "BM25 algorithm");
-        
+
         // Session 2: Weak lexical match, strong semantic match
         var session2 = CreateTestSession("session-2", "information retrieval systems", "search methods");
-        
+
         // Session 3: Moderate match in both
         var session3 = CreateTestSession("session-3", "search engine design", "ranking algorithms");
-        
+
         await _hybridSearcher.IndexSessionAsync(session1);
         await _hybridSearcher.IndexSessionAsync(session2);
         await _hybridSearcher.IndexSessionAsync(session3);
@@ -132,12 +132,12 @@ public class HybridSearcherTests : IDisposable
     {
         // Arrange
         await _hybridSearcher.InitializeAsync();
-        
+
         // Create sessions that will rank differently in each engine
         var sessions = Enumerable.Range(1, 5)
             .Select(i => CreateTestSession($"session-{i}", $"query term {i}", $"answer {i}"))
             .ToList();
-        
+
         await _hybridSearcher.IndexSessionsAsync(sessions);
 
         // Act
@@ -146,7 +146,7 @@ public class HybridSearcherTests : IDisposable
         // Assert - RRF should produce combined scores
         Assert.NotEmpty(results);
         Assert.All(results, r => Assert.True(r.Score > 0));
-        
+
         // Results should be ordered by fused score
         var scores = results.Select(r => r.Score).ToList();
         for (int i = 0; i < scores.Count - 1; i++)
@@ -171,7 +171,7 @@ public class HybridSearcherTests : IDisposable
         var lexicalResults = await _hybridSearcher.SearchAsync("Query", SearchMode.Lexical, maxResults: 10);
         var semanticResults = await _hybridSearcher.SearchAsync("Query", SearchMode.Semantic, maxResults: 10);
         var hybridResults = await _hybridSearcher.SearchAsync("Query", SearchMode.Hybrid, maxResults: 10);
-        
+
         Assert.Equal(5, lexicalResults.Count);
         Assert.Equal(5, semanticResults.Count);
         Assert.Equal(5, hybridResults.Count);
@@ -193,7 +193,7 @@ public class HybridSearcherTests : IDisposable
         // Assert
         var lexicalResults = await _hybridSearcher.SearchAsync("Query", SearchMode.Lexical, maxResults: 10);
         var semanticResults = await _hybridSearcher.SearchAsync("Query", SearchMode.Semantic, maxResults: 10);
-        
+
         Assert.Empty(lexicalResults);
         Assert.Empty(semanticResults);
     }
@@ -235,7 +235,7 @@ public class HybridSearcherTests : IDisposable
     {
         // Arrange
         await _hybridSearcher.InitializeAsync();
-        
+
         // Session that should rank high in both engines
         var session = CreateTestSession("session-1", "test query search", "test answer result");
         await _hybridSearcher.IndexSessionAsync(session);
@@ -264,9 +264,9 @@ public class HybridSearcherTests : IDisposable
     public void Constructor_WithCustomWeights_SetsWeights()
     {
         // Arrange & Act
-        var searcher = new HybridSearcher(_lexicalEngine, _vectorEngine, 
-            lexicalWeight: 0.7f, 
-            semanticWeight: 0.3f, 
+        var searcher = new HybridSearcher(_lexicalEngine, _vectorEngine,
+            lexicalWeight: 0.7f,
+            semanticWeight: 0.3f,
             rrfK: 100);
 
         // Assert
@@ -277,10 +277,10 @@ public class HybridSearcherTests : IDisposable
     public void Constructor_NullEngines_ThrowsException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => 
+        Assert.Throws<ArgumentNullException>(() =>
             new HybridSearcher(null!, _vectorEngine));
-        
-        Assert.Throws<ArgumentNullException>(() => 
+
+        Assert.Throws<ArgumentNullException>(() =>
             new HybridSearcher(_lexicalEngine, null!));
     }
 
@@ -289,7 +289,7 @@ public class HybridSearcherTests : IDisposable
     {
         // Arrange
         await _hybridSearcher.InitializeAsync();
-        
+
         // Create many sessions to test that we fetch 3x results for better fusion
         var sessions = Enumerable.Range(1, 20)
             .Select(i => CreateTestSession($"session-{i}", $"query content {i}", $"answer {i}"))
@@ -347,7 +347,7 @@ public class HybridSearcherTests : IDisposable
     public void Dispose()
     {
         _hybridSearcher.Dispose();
-        
+
         if (Directory.Exists(_testLexicalPath))
         {
             try
@@ -359,7 +359,7 @@ public class HybridSearcherTests : IDisposable
                 // Ignore cleanup errors
             }
         }
-        
+
         if (Directory.Exists(_testVectorPath))
         {
             try

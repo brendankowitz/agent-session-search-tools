@@ -13,7 +13,7 @@ public static class EmbeddingProviderFactory
     /// <param name="ct">Cancellation token</param>
     /// <returns>An embedding provider (never null)</returns>
     public static async Task<IEmbeddingProvider> TryCreateAsync(
-        string? modelsPath = null, 
+        string? modelsPath = null,
         CancellationToken ct = default)
     {
         // Try ONNX provider if models path is specified
@@ -43,7 +43,7 @@ public static class EmbeddingProviderFactory
     /// Returns null if model files are not found.
     /// </summary>
     public static async Task<IEmbeddingProvider?> CreateOnnxProviderAsync(
-        string modelsPath, 
+        string modelsPath,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelsPath);

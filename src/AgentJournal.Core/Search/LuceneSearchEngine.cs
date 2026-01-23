@@ -18,7 +18,7 @@ namespace AgentJournal.Core.Search;
 public class LuceneSearchEngine : ISearchEngine, IDisposable
 {
     private const LuceneVersion LUCENE_VERSION = LuceneVersion.LUCENE_48;
-    
+
     // Field names
     private const string FIELD_ID = "id";
     private const string FIELD_SESSION_ID = "session_id";
@@ -28,11 +28,11 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     private const string FIELD_CONTENT = "content";
     private const string FIELD_ALL_CONTENT = "all_content"; // Combined content from all session messages
     private const string FIELD_TIMESTAMP = "timestamp";
-    
+
     private readonly string _indexPath;
     private readonly ReaderWriterLockSlim _indexLock = new(LockRecursionPolicy.NoRecursion);
     private readonly ConcurrentDictionary<string, Session> _sessionCache = new();
-    
+
     private FSDirectory? _directory;
     private Analyzer? _analyzer;
     private IndexWriter? _writer;
@@ -198,7 +198,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
 
         _searcherManager?.MaybeRefresh();
         var searcher = _searcherManager?.Acquire();
-        
+
         try
         {
             if (searcher == null)
@@ -209,7 +209,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             // Parse the query - search in the combined all_content field for session-level matching
             var parser = new QueryParser(LUCENE_VERSION, FIELD_ALL_CONTENT, _analyzer!);
             parser.DefaultOperator = Operator.AND;
-            
+
             Query luceneQuery;
             try
             {
@@ -230,17 +230,17 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             {
                 var doc = searcher.Doc(scoreDoc.Doc);
                 var sessionId = doc.Get(FIELD_SESSION_ID);
-                
+
                 // Skip if we've already seen this session (deduplicate by session)
                 if (!seenSessions.Add(sessionId))
                 {
                     continue;
                 }
-                
+
                 // Get the session from cache, or create minimal session from doc
                 Session session;
                 IReadOnlyList<Message>? matchingMessages = null;
-                
+
                 if (_sessionCache.TryGetValue(sessionId, out var cachedSession))
                 {
                     session = cachedSession;
@@ -248,7 +248,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
                     var matchedMessages = session.Messages
                         .Where(m => m.Id == messageId)
                         .ToList();
-                    
+
                     // Expand with context if requested
                     matchingMessages = ExpandWithContext(session.Messages, matchedMessages, contextCount);
                 }
@@ -257,9 +257,9 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
                     // Create minimal session from Lucene document data
                     // Note: Timestamp is stored as DateTime.Ticks
                     var timestamp = long.TryParse(doc.Get(FIELD_TIMESTAMP), out var ticks) && ticks > 0
-                        ? new DateTime(ticks, DateTimeKind.Utc) 
+                        ? new DateTime(ticks, DateTimeKind.Utc)
                         : DateTime.MinValue;
-                    
+
                     session = new Session(
                         Id: sessionId,
                         AgentType: doc.Get(FIELD_AGENT_TYPE) ?? "unknown",
@@ -284,7 +284,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
                     MatchingMessages: matchingMessages,
                     Highlight: highlight
                 ));
-                
+
                 // Stop if we have enough results
                 if (results.Count >= maxResults)
                 {
@@ -392,14 +392,14 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         doc.Add(new StringField(FIELD_ID, message.Id, Field.Store.YES));
         doc.Add(new StringField(FIELD_SESSION_ID, session.Id, Field.Store.YES));
         doc.Add(new StringField(FIELD_AGENT_TYPE, session.AgentType, Field.Store.YES));
-        
+
         if (!string.IsNullOrEmpty(session.ProjectPath))
         {
             doc.Add(new StringField(FIELD_PROJECT_PATH, session.ProjectPath, Field.Store.YES));
         }
-        
+
         doc.Add(new StringField(FIELD_ROLE, message.Role.ToString(), Field.Store.YES));
-        
+
         // Timestamp as sortable long field
         var timestampTicks = message.Timestamp.Ticks;
         doc.Add(new Int64Field(FIELD_TIMESTAMP, timestampTicks, Field.Store.YES));
@@ -429,21 +429,21 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         // Simple highlighting: find the query term and return context
         var queryTerms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var lowerContent = content.ToLowerInvariant();
-        
+
         foreach (var term in queryTerms)
         {
             var lowerTerm = term.ToLowerInvariant().Trim('"', '\'');
             var index = lowerContent.IndexOf(lowerTerm, StringComparison.OrdinalIgnoreCase);
-            
+
             if (index >= 0)
             {
                 var start = Math.Max(0, index - 50);
                 var end = Math.Min(content.Length, index + lowerTerm.Length + 150);
                 var highlight = content.Substring(start, end - start);
-                
+
                 if (start > 0) highlight = "..." + highlight;
                 if (end < content.Length) highlight += "...";
-                
+
                 return highlight;
             }
         }

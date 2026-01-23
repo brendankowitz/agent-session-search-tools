@@ -56,7 +56,7 @@ public class LuceneSearchEngineTests : IDisposable
         await _searchEngine.InitializeAsync();
         var session1 = CreateTestSession("session-1", "Lucene full-text search", "Use BM25 for ranking");
         var session2 = CreateTestSession("session-2", "Vector embeddings", "Use cosine similarity");
-        
+
         await _searchEngine.IndexSessionAsync(session1);
         await _searchEngine.IndexSessionAsync(session2);
 
@@ -76,7 +76,7 @@ public class LuceneSearchEngineTests : IDisposable
         await _searchEngine.InitializeAsync();
         var session1 = CreateTestSession("session-1", "Lucene search engine", "Full text search");
         var session2 = CreateTestSession("session-2", "Lucene library", "Vector search");
-        
+
         await _searchEngine.IndexSessionAsync(session1);
         await _searchEngine.IndexSessionAsync(session2);
 
@@ -95,7 +95,7 @@ public class LuceneSearchEngineTests : IDisposable
         await _searchEngine.InitializeAsync();
         var session1 = CreateTestSession("session-1", "full text search", "Answer");
         var session2 = CreateTestSession("session-2", "search full text", "Answer");
-        
+
         await _searchEngine.IndexSessionAsync(session1);
         await _searchEngine.IndexSessionAsync(session2);
 
@@ -322,7 +322,7 @@ public class LuceneSearchEngineTests : IDisposable
     public void Dispose()
     {
         _searchEngine.Dispose();
-        
+
         if (Directory.Exists(_testIndexPath))
         {
             Directory.Delete(_testIndexPath, recursive: true);

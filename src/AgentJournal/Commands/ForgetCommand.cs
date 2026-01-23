@@ -47,7 +47,7 @@ public class ForgetCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new ForgetCommand();
-        
+
         command.SetHandler(async (id, match, project, all, confirm) =>
         {
             var repository = serviceProvider.GetRequiredService<IKnowledgeRepository>();
@@ -62,7 +62,7 @@ public class ForgetCommand : Command
                 repository,
                 configService,
                 CancellationToken.None);
-        }, 
+        },
         command.Arguments[0] as Argument<string?> ?? throw new InvalidOperationException("Missing id argument"),
         command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing match option"),
         command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
@@ -163,9 +163,9 @@ public class ForgetCommand : Command
     private static async Task DeleteAllAsync(IKnowledgeRepository repository, CancellationToken ct)
     {
         var entries = await repository.ListAsync(limit: int.MaxValue, ct: ct);
-        
+
         Console.WriteLine($"Deleting {entries.Count} knowledge entries...");
-        
+
         var ids = entries.Select(e => e.Id).ToList();
         var deleted = await repository.DeleteManyAsync(ids, ct);
 
@@ -180,7 +180,7 @@ public class ForgetCommand : Command
     {
         // Search for matching entries
         var results = await repository.SearchAsync(match, project: project, maxResults: 100, ct: ct);
-        
+
         if (results.Count == 0)
         {
             Console.WriteLine("No matching knowledge entries found.");
@@ -213,7 +213,7 @@ public class ForgetCommand : Command
         CancellationToken ct)
     {
         var entries = await repository.ListAsync(project: project, limit: int.MaxValue, ct: ct);
-        
+
         if (entries.Count == 0)
         {
             Console.WriteLine($"No knowledge entries found for project '{project}'.");

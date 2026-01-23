@@ -66,7 +66,7 @@ public class AgentJournalTools
         var filtered = results.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(project))
         {
-            filtered = filtered.Where(r => 
+            filtered = filtered.Where(r =>
                 r.Session.ProjectPath?.Contains(project, StringComparison.OrdinalIgnoreCase) == true);
         }
 
@@ -655,10 +655,10 @@ public class AgentJournalTools
         // Search sessions
         var sessionResults = await _searchEngine.SearchAsync(query, searchMode, limit);
         var filtered = sessionResults.AsEnumerable();
-        
+
         if (!string.IsNullOrWhiteSpace(project))
         {
-            filtered = filtered.Where(r => 
+            filtered = filtered.Where(r =>
                 r.Session.ProjectPath?.Contains(project, StringComparison.OrdinalIgnoreCase) == true);
         }
 
@@ -729,9 +729,9 @@ public class AgentJournalTools
         }
 
         // Get first user or assistant message as preview
-        var firstMessage = session.Messages.FirstOrDefault(m => 
+        var firstMessage = session.Messages.FirstOrDefault(m =>
             m.Role == MessageRole.User || m.Role == MessageRole.Assistant);
-        
+
         if (firstMessage != null)
         {
             var content = firstMessage.Content;

@@ -41,7 +41,7 @@ public class ExportCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new ExportCommand();
-        
+
         command.SetHandler(async (sessionId, format, output, stdout) =>
         {
             var configService = serviceProvider.GetRequiredService<ConfigurationService>();
@@ -57,7 +57,7 @@ public class ExportCommand : Command
                 repository,
                 exporters,
                 CancellationToken.None);
-        }, 
+        },
         command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing session-id argument"),
         command.Options[0] as Option<string> ?? throw new InvalidOperationException("Missing format option"),
         command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing output option"),
@@ -140,7 +140,7 @@ public class ExportCommand : Command
 
                 Console.WriteLine($"Export complete!");
                 Console.WriteLine($"Session exported: {session.MessageCount} messages");
-                
+
                 if (session.ToolCallCount > 0)
                 {
                     Console.WriteLine($"Tool calls included: {session.ToolCallCount}");

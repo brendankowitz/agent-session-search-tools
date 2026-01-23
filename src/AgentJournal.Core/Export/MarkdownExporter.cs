@@ -21,7 +21,7 @@ public class MarkdownExporter : IExporter
     public Task<string> ExportAsync(Session session, CancellationToken ct = default)
     {
         var sb = new StringBuilder();
-        
+
         // Header
         sb.AppendLine($"# {session.AgentType} Session");
         sb.AppendLine();
@@ -30,16 +30,16 @@ public class MarkdownExporter : IExporter
         sb.AppendLine($"- **Project**: {session.ProjectPath ?? "N/A"}");
         sb.AppendLine($"- **Branch**: {session.GitBranch ?? "N/A"}");
         sb.AppendLine($"- **Started**: {session.StartedAt:yyyy-MM-dd HH:mm:ss}");
-        
+
         if (session.EndedAt.HasValue)
         {
             sb.AppendLine($"- **Ended**: {session.EndedAt.Value:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"- **Duration**: {FormatDuration(session.Duration)}");
         }
-        
+
         sb.AppendLine($"- **Messages**: {session.MessageCount} ({session.UserMessageCount} user, {session.AssistantMessageCount} assistant)");
         sb.AppendLine($"- **Tool Calls**: {session.ToolCallCount}");
-        
+
         if (!string.IsNullOrEmpty(session.AgentVersion))
         {
             sb.AppendLine($"- **Agent Version**: {session.AgentVersion}");
@@ -176,13 +176,13 @@ public class MarkdownExporter : IExporter
                 {
                     sb.AppendLine("**Result:**");
                     sb.AppendLine("```");
-                    
+
                     var result = tool.Result;
                     if (_options.MaxToolResultLength.HasValue && result.Length > _options.MaxToolResultLength.Value)
                     {
                         result = result[.._options.MaxToolResultLength.Value] + "\n\n... (truncated)";
                     }
-                    
+
                     sb.AppendLine(result);
                     sb.AppendLine("```");
                     sb.AppendLine();
@@ -205,20 +205,20 @@ public class MarkdownExporter : IExporter
     {
         sb.AppendLine($"## {session.AgentType} Session {{#{MakeLinkId(session.Id)}}}");
         sb.AppendLine();
-        
+
         sb.AppendLine("### Session Information");
         sb.AppendLine();
         sb.AppendLine($"- **ID**: `{session.Id}`");
         sb.AppendLine($"- **Project**: {session.ProjectPath ?? "N/A"}");
         sb.AppendLine($"- **Branch**: {session.GitBranch ?? "N/A"}");
         sb.AppendLine($"- **Started**: {session.StartedAt:yyyy-MM-dd HH:mm:ss}");
-        
+
         if (session.EndedAt.HasValue)
         {
             sb.AppendLine($"- **Ended**: {session.EndedAt.Value:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"- **Duration**: {FormatDuration(session.Duration)}");
         }
-        
+
         sb.AppendLine($"- **Messages**: {session.MessageCount}");
         sb.AppendLine($"- **Tool Calls**: {session.ToolCallCount}");
 
@@ -247,7 +247,7 @@ public class MarkdownExporter : IExporter
     {
         if (!duration.HasValue)
             return "N/A";
-        
+
         var d = duration.Value;
         if (d.TotalMinutes < 1)
             return $"{d.Seconds}s";
@@ -255,7 +255,7 @@ public class MarkdownExporter : IExporter
             return $"{d.Minutes}m {d.Seconds}s";
         if (d.TotalDays < 1)
             return $"{(int)d.TotalHours}h {d.Minutes}m";
-        
+
         return $"{(int)d.TotalDays}d {d.Hours}h {d.Minutes}m";
     }
 

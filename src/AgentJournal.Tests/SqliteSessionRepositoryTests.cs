@@ -19,7 +19,7 @@ public class SqliteSessionRepositoryTests : IDisposable
     {
         // Clear any pooled connections
         SqliteConnection.ClearAllPools();
-        
+
         // Note: File cleanup is best effort - SQLite may hold locks for a moment
         // This doesn't affect test validity as each test uses a unique database file
     }
@@ -96,11 +96,12 @@ public class SqliteSessionRepositoryTests : IDisposable
         // Assert
         var retrieved = await _repository.GetSessionAsync("session-1");
         Assert.NotNull(retrieved);
-        Assert.Equal(1, retrieved.Messages.Count);
-        Assert.NotNull(retrieved.Messages[0].ToolCalls);
-        Assert.Equal(2, retrieved.Messages[0].ToolCalls.Count);
-        Assert.Equal("read_file", retrieved.Messages[0].ToolCalls[0].Name);
-        Assert.Equal("write_file", retrieved.Messages[0].ToolCalls[1].Name);
+        var message = Assert.Single(retrieved.Messages);
+        Assert.NotNull(message.ToolCalls);
+        var retrievedToolCalls = message.ToolCalls;
+        Assert.Equal(2, retrievedToolCalls.Count);
+        Assert.Equal("read_file", retrievedToolCalls[0].Name);
+        Assert.Equal("write_file", retrievedToolCalls[1].Name);
     }
 
     [Fact]

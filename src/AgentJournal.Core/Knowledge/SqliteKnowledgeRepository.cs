@@ -19,7 +19,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         {
             throw new ArgumentException("Database path cannot be null or empty", nameof(databasePath));
         }
-        
+
         if (halfLifeDays <= 0)
         {
             throw new ArgumentException("Half-life must be positive", nameof(halfLifeDays));
@@ -203,7 +203,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
                        rank
                 FROM knowledge_fts
                 JOIN knowledge k ON knowledge_fts.rowid = k.rowid
-                WHERE knowledge_fts MATCH @query" + 
+                WHERE knowledge_fts MATCH @query" +
                 (whereClauses.Count > 0 ? " AND " + string.Join(" AND ", whereClauses) : "") +
                 " ORDER BY rank LIMIT @limit;";
 
@@ -211,7 +211,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             command.CommandText = sql;
             command.Parameters.AddWithValue("@query", query);
             command.Parameters.AddWithValue("@limit", maxResults);
-            
+
             foreach (var (name, value) in parameters)
             {
                 command.Parameters.AddWithValue(name, value);
@@ -222,17 +222,17 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             {
                 var entry = ReadKnowledgeEntry(reader);
                 var rank = reader.GetDouble(8);
-                
+
                 // Calculate decay factor
                 var decayFactor = DecayCalculator.CalculateDecayFactor(entry.LastReinforcedAt, _halfLifeDays);
-                
+
                 // Apply decay to score (normalize rank to 0-1 range and apply decay)
                 var normalizedScore = Math.Min(1.0, Math.Max(0.0, -rank / 10.0)); // FTS5 rank is negative
                 var adjustedScore = DecayCalculator.ApplyDecay(normalizedScore, decayFactor);
-                
+
                 // Get highlight
                 var highlight = GetHighlight(entry.Content, query);
-                
+
                 results.Add(new KnowledgeSearchResult(entry, adjustedScore, decayFactor, highlight));
             }
         }
@@ -249,7 +249,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             await using var command = connection.CreateCommand();
             command.CommandText = sql;
             command.Parameters.AddWithValue("@limit", maxResults);
-            
+
             foreach (var (name, value) in parameters)
             {
                 command.Parameters.AddWithValue(name, value);
@@ -260,7 +260,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             {
                 var entry = ReadKnowledgeEntry(reader);
                 var decayFactor = DecayCalculator.CalculateDecayFactor(entry.LastReinforcedAt, _halfLifeDays);
-                
+
                 results.Add(new KnowledgeSearchResult(entry, decayFactor, decayFactor, null));
             }
         }
@@ -313,7 +313,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         try
         {
             int deleted = 0;
-            
+
             // Batch delete in chunks of 500 to avoid parameter limits
             const int batchSize = 500;
             for (int i = 0; i < idList.Count; i += batchSize)
@@ -324,7 +324,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
                 await using var command = connection.CreateCommand();
                 command.Transaction = transaction;
                 command.CommandText = $"DELETE FROM knowledge WHERE id IN ({placeholders});";
-                
+
                 for (int j = 0; j < batch.Count; j++)
                 {
                     command.Parameters.AddWithValue($"@id{j}", batch[j]);
@@ -380,7 +380,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
                     WHERE id IN ({placeholders});
                 ";
                 command.Parameters.AddWithValue("@now", now);
-                
+
                 for (int j = 0; j < batch.Count; j++)
                 {
                     command.Parameters.AddWithValue($"@id{j}", batch[j]);
@@ -429,7 +429,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
 
             var rowsAffected = await command.ExecuteNonQueryAsync(ct);
             await transaction.CommitAsync(ct);
-            
+
             return rowsAffected > 0;
         }
         catch
@@ -483,7 +483,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.Parameters.AddWithValue("@limit", limit);
-        
+
         foreach (var (name, value) in parameters)
         {
             command.Parameters.AddWithValue(name, value);
@@ -494,7 +494,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         while (await reader.ReadAsync(ct))
         {
             var entry = ReadKnowledgeEntry(reader);
-            
+
             // Filter by decay if requested
             if (!includeDecaying)
             {
@@ -504,7 +504,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
                     continue;
                 }
             }
-            
+
             results.Add(entry);
         }
 
@@ -529,7 +529,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
 
         var entriesByProject = new Dictionary<string, int>();
         var entriesByTag = new Dictionary<string, int>();
-        
+
         int total = 0;
         int fresh = 0;
         int good = 0;
@@ -546,7 +546,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             var lastReinforcedStr = reader.GetString(2);
             var lastReinforced = DateTime.ParseExact(lastReinforcedStr, "O", System.Globalization.CultureInfo.InvariantCulture);
             var decayFactor = DecayCalculator.CalculateDecayFactor(lastReinforced, _halfLifeDays);
-            
+
             if (decayFactor > 0.75) fresh++;
             else if (decayFactor > 0.50) good++;
             else if (decayFactor > 0.25) aging++;
@@ -609,7 +609,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
 
             var deleted = await deleteCommand.ExecuteNonQueryAsync(ct);
             await transaction.CommitAsync(ct);
-            
+
             return deleted;
         }
         catch
@@ -646,14 +646,14 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         var tags = JsonSerializer.Deserialize<string[]>(tagsJson) ?? Array.Empty<string>();
         var project = reader.IsDBNull(3) ? null : reader.GetString(3);
         var source = reader.IsDBNull(4) ? null : reader.GetString(4);
-        
+
         // Use ParseExact with InvariantCulture for consistent DateTime parsing
         var createdAtStr = reader.GetString(5);
         var createdAt = DateTime.ParseExact(createdAtStr, "O", System.Globalization.CultureInfo.InvariantCulture);
-        
+
         var lastReinforcedAtStr = reader.GetString(6);
         var lastReinforced = DateTime.ParseExact(lastReinforcedAtStr, "O", System.Globalization.CultureInfo.InvariantCulture);
-        
+
         var reinforcementCount = reader.GetInt32(7);
 
         return new KnowledgeEntry(
@@ -681,28 +681,28 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         // Simple highlighting: find query terms and return context
         var queryTerms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var lowerContent = content.ToLowerInvariant();
-        
+
         foreach (var term in queryTerms)
         {
             var lowerTerm = term.ToLowerInvariant();
             var index = lowerContent.IndexOf(lowerTerm, StringComparison.OrdinalIgnoreCase);
-            
+
             if (index >= 0)
             {
                 var start = Math.Max(0, index - 50);
                 var end = Math.Min(content.Length, index + lowerTerm.Length + 150);
                 var highlight = content.Substring(start, end - start);
-                
+
                 if (start > 0) highlight = "..." + highlight;
                 if (end < content.Length) highlight += "...";
-                
+
                 return highlight;
             }
         }
 
         // If no match, return beginning of content
-        return content.Length > maxLength 
-            ? content.Substring(0, maxLength) + "..." 
+        return content.Length > maxLength
+            ? content.Substring(0, maxLength) + "..."
             : content;
     }
 }

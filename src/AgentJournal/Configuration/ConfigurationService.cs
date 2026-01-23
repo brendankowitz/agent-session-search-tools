@@ -83,7 +83,7 @@ public class ConfigurationService
     public async Task<bool> SetConfigValueAsync(string key, string value, CancellationToken ct = default)
     {
         var config = await LoadConfigAsync(ct);
-        
+
         switch (key.ToLowerInvariant())
         {
             case "datapath":

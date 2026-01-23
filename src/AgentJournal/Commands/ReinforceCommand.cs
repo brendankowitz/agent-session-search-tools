@@ -46,7 +46,7 @@ public class ReinforceCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new ReinforceCommand();
-        
+
         command.SetHandler(async (ids, match, project, decaying, expiring) =>
         {
             var repository = serviceProvider.GetRequiredService<IKnowledgeRepository>();
@@ -61,7 +61,7 @@ public class ReinforceCommand : Command
                 repository,
                 configService,
                 CancellationToken.None);
-        }, 
+        },
         command.Arguments[0] as Argument<string[]> ?? throw new InvalidOperationException("Missing ids argument"),
         command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing match option"),
         command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
@@ -151,7 +151,7 @@ public class ReinforceCommand : Command
     {
         // Search for matching entries
         var results = await repository.SearchAsync(match, project: project, maxResults: 100, ct: ct);
-        
+
         if (results.Count == 0)
         {
             Console.WriteLine("No matching knowledge entries found.");
@@ -185,7 +185,7 @@ public class ReinforceCommand : Command
         CancellationToken ct)
     {
         var entries = await repository.ListAsync(project: project, includeDecaying: true, limit: int.MaxValue, ct: ct);
-        
+
         // Filter to decaying entries (decay factor < 0.5)
         var decayingEntries = entries
             .Where(e => DecayCalculator.CalculateDecayFactor(e.LastReinforcedAt) < 0.5)
@@ -224,7 +224,7 @@ public class ReinforceCommand : Command
         CancellationToken ct)
     {
         var entries = await repository.ListAsync(project: project, includeDecaying: true, limit: int.MaxValue, ct: ct);
-        
+
         // Filter to expiring entries (decay factor < 0.1)
         var expiringEntries = entries
             .Where(e => DecayCalculator.CalculateDecayFactor(e.LastReinforcedAt) < 0.1)

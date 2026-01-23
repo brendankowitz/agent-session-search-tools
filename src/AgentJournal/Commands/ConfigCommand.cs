@@ -93,16 +93,16 @@ public class ConfigCommand : Command
             {
                 var configService = serviceProvider.GetRequiredService<ConfigurationService>();
                 await ExecuteAsync(key, value, configService, CancellationToken.None);
-            }, 
+            },
             command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing key argument"),
             command.Arguments[1] as Argument<string> ?? throw new InvalidOperationException("Missing value argument"));
             return command;
         }
 
         private static async Task ExecuteAsync(
-            string key, 
-            string value, 
-            ConfigurationService configService, 
+            string key,
+            string value,
+            ConfigurationService configService,
             CancellationToken ct)
         {
             Console.WriteLine($"Setting configuration: {key} = {value}");
@@ -148,7 +148,7 @@ public class ConfigCommand : Command
         }
 
         private static async Task ExecuteAsync(
-            IEnumerable<IAgentConnector> connectors, 
+            IEnumerable<IAgentConnector> connectors,
             CancellationToken ct)
         {
             Console.WriteLine("Available Agent Connectors");
@@ -158,12 +158,12 @@ public class ConfigCommand : Command
             foreach (var connector in connectors)
             {
                 Console.WriteLine($"Agent Type: {connector.AgentType}");
-                
+
                 try
                 {
                     var sessionPaths = connector.GetSessionPaths().ToList();
                     Console.WriteLine($"  Found: {sessionPaths.Count} session path(s)");
-                    
+
                     if (sessionPaths.Count > 0)
                     {
                         Console.WriteLine($"  Example path: {sessionPaths.First()}");
@@ -173,12 +173,12 @@ public class ConfigCommand : Command
                 {
                     Console.WriteLine($"  Status: Not available ({ex.Message})");
                 }
-                
+
                 Console.WriteLine();
             }
 
             Console.WriteLine("To index sessions from an agent, use: aj index --agent <type>");
-            
+
             await Task.CompletedTask;
         }
     }

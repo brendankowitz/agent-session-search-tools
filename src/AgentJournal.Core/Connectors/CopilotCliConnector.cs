@@ -21,7 +21,7 @@ public class CopilotCliConnector : IAgentConnector
     public IEnumerable<string> GetSessionPaths()
     {
         var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        
+
         // Check potentially multiple locations for sessions
         var possibleDirectories = new[]
         {
@@ -52,7 +52,7 @@ public class CopilotCliConnector : IAgentConnector
         foreach (var sessionPath in GetSessionPaths())
         {
             ct.ThrowIfCancellationRequested();
-            
+
             var session = await ParseSessionAsync(sessionPath, ct);
             if (session != null)
             {
@@ -74,7 +74,7 @@ public class CopilotCliConnector : IAgentConnector
             var lastModified = File.GetLastWriteTimeUtc(eventsFile);
 
             var events = new List<CopilotEvent>();
-            
+
             await foreach (var line in File.ReadLinesAsync(eventsFile, ct))
             {
                 if (string.IsNullOrWhiteSpace(line))
@@ -128,7 +128,7 @@ public class CopilotCliConnector : IAgentConnector
 
             var startData = JsonSerializer.Deserialize<SessionStartData>(
                 jsonElement.GetRawText(), JsonOptions);
-            
+
             if (startData == null || string.IsNullOrEmpty(startData.SessionId))
             {
                 return null;
@@ -191,7 +191,7 @@ public class CopilotCliConnector : IAgentConnector
                     if (assistantMessage != null)
                     {
                         messages.Add(assistantMessage);
-                        
+
                         // Track tool calls for later result matching
                         foreach (var toolCall in toolCalls)
                         {
@@ -285,8 +285,8 @@ public class CopilotCliConnector : IAgentConnector
                         Id: toolRequest.ToolCallId,
                         MessageId: evt.Id,
                         Name: toolRequest.Name ?? "unknown",
-                        Arguments: toolRequest.Arguments != null 
-                            ? JsonSerializer.Serialize(toolRequest.Arguments, JsonOptions) 
+                        Arguments: toolRequest.Arguments != null
+                            ? JsonSerializer.Serialize(toolRequest.Arguments, JsonOptions)
                             : null,
                         Result: null,
                         Success: null
@@ -335,7 +335,7 @@ public class CopilotCliConnector : IAgentConnector
             if (toolCallsMap.TryGetValue(data.ToolCallId, out var toolCallInfo))
             {
                 var resultContent = data.Result?.Content ?? string.Empty;
-                
+
                 toolCallInfo.ToolCall = toolCallInfo.ToolCall with
                 {
                     Result = resultContent,
@@ -350,7 +350,7 @@ public class CopilotCliConnector : IAgentConnector
     }
 
     private IReadOnlyList<Message> RebuildMessagesWithToolCalls(
-        List<Message> messages, 
+        List<Message> messages,
         Dictionary<string, ToolCallInfo> toolCallsMap)
     {
         var rebuiltMessages = new List<Message>();

@@ -25,7 +25,7 @@ public static class DecayCalculator
         }
 
         var daysSinceReinforced = (DateTime.UtcNow - lastReinforced).TotalDays;
-        
+
         // Ensure we don't have future dates (clock skew protection)
         if (daysSinceReinforced < 0)
         {

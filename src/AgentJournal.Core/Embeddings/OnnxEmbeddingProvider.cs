@@ -18,9 +18,9 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     private readonly SemaphoreSlim _inferenceLock = new(1, 1); // ONNX Session is not thread-safe
 
     public int Dimensions => VectorDimensions;
-    
+
     public bool IsSemanticModel => true;
-    
+
     /// <summary>
     /// The execution provider being used (e.g., "DirectML (GPU)" or "CPU")
     /// </summary>
@@ -58,11 +58,11 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         {
             // Create session with auto-detected execution provider (GPU/NPU -> CPU fallback)
             var (session, executionProvider) = CreateSessionWithBestProvider(modelPath);
-            
+
             // Load tokenizer - BertTokenizer needs vocab.txt for MiniLM/BERT models
             var vocabPath = Path.Combine(modelsPath, "minilm", "vocab.txt");
             Tokenizer tokenizer;
-            
+
             if (File.Exists(vocabPath))
             {
                 // Use vocab.txt for proper BERT/WordPiece tokenization
@@ -88,7 +88,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
 
             return new OnnxEmbeddingProvider(session, tokenizer, executionProvider);
         }
-        catch (Exception ex) when (ex is FileNotFoundException 
+        catch (Exception ex) when (ex is FileNotFoundException
                                 or DirectoryNotFoundException
                                 or InvalidDataException
                                 or Microsoft.ML.OnnxRuntime.OnnxRuntimeException)
@@ -97,7 +97,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
             return null;
         }
     }
-    
+
     /// <summary>
     /// Tries to create an InferenceSession with the best available execution provider.
     /// Attempts DirectML (GPU) first, then falls back to CPU.
@@ -118,7 +118,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         {
             // DirectML not available, continue to CPU fallback
         }
-        
+
         // Fallback to CPU with optimizations
         {
             var options = new SessionOptions();
@@ -180,7 +180,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
 
             // Mean pooling
             var embedding = MeanPooling(output, attentionMask.ToArray());
-            
+
             // Normalize
             Normalize(embedding);
 
@@ -197,14 +197,14 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
         ArgumentNullException.ThrowIfNull(texts);
 
         var results = new float[texts.Count][];
-        
+
         for (int i = 0; i < texts.Count; i += BatchSize)
         {
             ct.ThrowIfCancellationRequested();
-            
+
             var batchEnd = Math.Min(i + BatchSize, texts.Count);
             var batchSize = batchEnd - i;
-            
+
             for (int j = 0; j < batchSize; j++)
             {
                 results[i + j] = await EmbedAsync(texts[i + j], ct);
@@ -217,16 +217,16 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     public void Normalize(Span<float> vector)
     {
         var sumOfSquares = 0.0f;
-        
+
         for (int i = 0; i < vector.Length; i++)
         {
             sumOfSquares += vector[i] * vector[i];
         }
-        
+
         if (sumOfSquares > 0)
         {
             var magnitude = MathF.Sqrt(sumOfSquares);
-            
+
             for (int i = 0; i < vector.Length; i++)
             {
                 vector[i] /= magnitude;
@@ -238,7 +238,7 @@ public sealed class OnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     {
         var sequenceLength = attentionMask.Length;
         var hiddenSize = VectorDimensions;
-        
+
         var pooled = new float[hiddenSize];
         var maskSum = 0L;
 

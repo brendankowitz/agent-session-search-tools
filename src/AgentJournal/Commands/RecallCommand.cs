@@ -54,7 +54,7 @@ public class RecallCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new RecallCommand();
-        
+
         command.SetHandler(async (query, tags, project, mode, limit, json) =>
         {
             var repository = serviceProvider.GetRequiredService<IKnowledgeRepository>();
@@ -70,7 +70,7 @@ public class RecallCommand : Command
                 repository,
                 configService,
                 CancellationToken.None);
-        }, 
+        },
         command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing query argument"),
         command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing tags option"),
         command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
@@ -185,7 +185,7 @@ public class RecallCommand : Command
 
             Console.WriteLine($"[{i + 1}] ID: {entry.Id}");
             Console.Write($"    Score: {result.Score:F2} (decay: {result.DecayFactor:F2} {RenderDecayBar(result.DecayFactor)})");
-            
+
             if (isExpiring)
             {
                 Console.Write(" ⚠️ expiring");
@@ -194,7 +194,7 @@ public class RecallCommand : Command
             {
                 Console.Write(" ⚠️ decaying");
             }
-            
+
             Console.WriteLine();
 
             if (entry.Tags.Length > 0)
@@ -224,36 +224,36 @@ public class RecallCommand : Command
         const int barLength = 10;
         var filled = (int)Math.Round(decayFactor * barLength);
         var empty = barLength - filled;
-        
+
         return new string('█', filled) + new string('░', empty);
     }
 
     private static string FormatTimeSince(DateTime timestamp)
     {
         var span = DateTime.UtcNow - timestamp;
-        
+
         if (span.TotalDays < 1)
         {
-            return span.TotalHours < 1 
+            return span.TotalHours < 1
                 ? $"{(int)span.TotalMinutes} minutes ago"
                 : $"{(int)span.TotalHours} hours ago";
         }
-        
+
         if (span.TotalDays < 7)
         {
             return $"{(int)span.TotalDays} days ago";
         }
-        
+
         if (span.TotalDays < 30)
         {
             return $"{(int)(span.TotalDays / 7)} weeks ago";
         }
-        
+
         if (span.TotalDays < 365)
         {
             return $"{(int)(span.TotalDays / 30)} months ago";
         }
-        
+
         return $"{(int)(span.TotalDays / 365)} years ago";
     }
 

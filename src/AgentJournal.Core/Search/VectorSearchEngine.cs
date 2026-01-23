@@ -21,13 +21,13 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
     private readonly ConcurrentDictionary<Guid, string> _messageToKnowledgeMap = new();
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private readonly ReaderWriterLockSlim _rwLock = new(LockRecursionPolicy.NoRecursion);
-    
+
     private AjviIndex? _index;
     private bool _initialized;
     private bool _disposed;
-    
+
     public IReadOnlyList<SearchMode> SupportedModes { get; } = [SearchMode.Semantic, SearchMode.Hybrid];
-    
+
     public VectorSearchEngine(string indexPath, IEmbeddingProvider embedder)
     {
         _indexPath = indexPath;
@@ -40,14 +40,14 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
     public async Task InitializeAsync(CancellationToken ct = default)
     {
         if (_initialized) return;
-        
+
         await _initLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (_initialized) return; // Double-check
-            
+
             var ajviPath = Path.Combine(_indexPath, "index.ajvi");
-            
+
             if (File.Exists(ajviPath))
             {
                 _index = AjviIndex.Open(ajviPath, readOnly: false);
@@ -58,7 +58,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                 Directory.CreateDirectory(_indexPath);
                 _index = AjviIndex.Create(ajviPath, _embedder.Dimensions, AjviIndex.VectorPrecision.Float16);
             }
-            
+
             _initialized = true;
         }
         finally
@@ -73,7 +73,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
     public async Task IndexSessionAsync(Session session, CancellationToken ct = default)
     {
         EnsureInitialized();
-        
+
         // Cache the session for retrieval during search
         _sessionCache[session.Id] = session;
 
@@ -124,8 +124,8 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                 var timestamp = new DateTimeOffset(message.Timestamp).ToUnixTimeMilliseconds();
 
                 // Create deterministic GUID from message ID for consistent indexing
-                var messageGuid = Guid.TryParse(message.Id, out var guid) 
-                    ? guid 
+                var messageGuid = Guid.TryParse(message.Id, out var guid)
+                    ? guid
                     : CreateGuidFromString(message.Id);
 
                 // Add entry to index
@@ -157,14 +157,14 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
     public async Task IndexSessionsAsync(IEnumerable<Session> sessions, CancellationToken ct = default)
     {
         EnsureInitialized();
-        
+
         _rwLock.EnterWriteLock();
         try
         {
             foreach (var session in sessions)
             {
                 ct.ThrowIfCancellationRequested();
-                
+
                 // Cache the session for retrieval during search
                 _sessionCache[session.Id] = session;
 
@@ -212,8 +212,8 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                     var timestamp = new DateTimeOffset(message.Timestamp).ToUnixTimeMilliseconds();
 
                     // Create deterministic GUID from message ID for consistent indexing
-                    var messageGuid = Guid.TryParse(message.Id, out var guid) 
-                        ? guid 
+                    var messageGuid = Guid.TryParse(message.Id, out var guid)
+                        ? guid
                         : CreateGuidFromString(message.Id);
 
                     // Add entry to index
@@ -236,7 +236,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
     public async Task IndexKnowledgeAsync(KnowledgeEntry entry, CancellationToken ct = default)
     {
         EnsureInitialized();
-        
+
         // Cache the knowledge entry for retrieval during search
         _knowledgeCache[entry.Id] = entry;
 
@@ -247,7 +247,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
 
         // Embed the content
         var embedding = await _embedder.EmbedAsync(entry.Content, ct);
-        
+
         _rwLock.EnterWriteLock();
         try
         {
@@ -316,7 +316,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
             foreach (var (index, score) in searchResults)
             {
                 var messageId = _index.GetMessageId(index);
-                
+
                 // Check if this is a knowledge entry (not a session message)
                 if (_messageToKnowledgeMap.TryGetValue(messageId, out var knowledgeId))
                 {
@@ -324,13 +324,13 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                     {
                         // Calculate decay factor
                         var decayFactor = DecayCalculator.CalculateDecayFactor(entry.LastReinforcedAt, halfLifeDays);
-                        
+
                         // Apply decay to score
                         var adjustedScore = DecayCalculator.ApplyDecay(score, decayFactor);
-                        
+
                         // Get highlight
                         var highlight = GetHighlight(entry.Content, query);
-                        
+
                         results.Add(new KnowledgeSearchResult(entry, adjustedScore, decayFactor, highlight));
                     }
                 }
@@ -387,7 +387,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
             foreach (var (index, score) in searchResults)
             {
                 var messageId = _index.GetMessageId(index);
-                
+
                 if (_messageToSessionMap.TryGetValue(messageId, out var sessionId))
                 {
                     if (!sessionScores.TryGetValue(sessionId, out var sessionData))
@@ -398,7 +398,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
 
                     // Add message ID to the list
                     sessionData.MessageIds.Add(messageId);
-                    
+
                     // Update score (use max score for the session)
                     if (score > sessionData.Score)
                     {
@@ -414,7 +414,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
 
         // Build search results
         var results = new List<SearchResult>();
-        
+
         foreach (var (sessionId, (score, messageIds)) in sessionScores
             .OrderByDescending(kvp => kvp.Value.Score)
             .Take(maxResults))
@@ -472,7 +472,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
             {
                 File.Delete(indexFile);
             }
-            
+
             // Also delete mappings files
             var mappingsFile = Path.Combine(_indexPath, "mappings.json");
             if (File.Exists(mappingsFile))
@@ -527,28 +527,28 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
         // Simple highlighting: find query terms and return context
         var queryTerms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var lowerContent = content.ToLowerInvariant();
-        
+
         foreach (var term in queryTerms)
         {
             var lowerTerm = term.ToLowerInvariant();
             var index = lowerContent.IndexOf(lowerTerm, StringComparison.OrdinalIgnoreCase);
-            
+
             if (index >= 0)
             {
                 var start = Math.Max(0, index - 50);
                 var end = Math.Min(content.Length, index + lowerTerm.Length + 150);
                 var highlight = content.Substring(start, end - start);
-                
+
                 if (start > 0) highlight = "..." + highlight;
                 if (end < content.Length) highlight += "...";
-                
+
                 return highlight;
             }
         }
 
         // If no match, return beginning of content
-        return content.Length > maxLength 
-            ? content.Substring(0, maxLength) + "..." 
+        return content.Length > maxLength
+            ? content.Substring(0, maxLength) + "..."
             : content;
     }
 
@@ -569,7 +569,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
 
         // Save mappings before disposing
         SaveMappingsSync();
-        
+
         _index?.Dispose();
         _index = null;
         _initLock.Dispose();
@@ -577,7 +577,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
         _disposed = true;
         GC.SuppressFinalize(this);
     }
-    
+
     /// <summary>
     /// Saves the message-to-session mappings to disk
     /// </summary>
@@ -587,11 +587,11 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
         {
             var mappingsPath = Path.Combine(_indexPath, "mappings.json");
             var mappingsData = _messageToSessionMap.ToDictionary(
-                kvp => kvp.Key.ToString(), 
+                kvp => kvp.Key.ToString(),
                 kvp => kvp.Value);
             var json = JsonSerializer.Serialize(mappingsData);
             File.WriteAllText(mappingsPath, json);
-            
+
             // Also save session cache (minimal version)
             var sessionsPath = Path.Combine(_indexPath, "sessions.json");
             var sessionsData = _sessionCache.Values.Select(s => new
@@ -606,7 +606,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
             }).ToList();
             var sessionsJson = JsonSerializer.Serialize(sessionsData);
             File.WriteAllText(sessionsPath, sessionsJson);
-            
+
             // Save knowledge mappings
             var knowledgeMappingsPath = Path.Combine(_indexPath, "knowledge_mappings.json");
             var knowledgeMappingsData = _messageToKnowledgeMap.ToDictionary(
@@ -614,7 +614,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                 kvp => kvp.Value);
             var knowledgeMappingsJson = JsonSerializer.Serialize(knowledgeMappingsData);
             File.WriteAllText(knowledgeMappingsPath, knowledgeMappingsJson);
-            
+
             // Save knowledge cache
             var knowledgePath = Path.Combine(_indexPath, "knowledge.json");
             var knowledgeData = _knowledgeCache.Values.Select(k => new
@@ -636,7 +636,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
             // Ignore save errors - mappings will be rebuilt on next index
         }
     }
-    
+
     /// <summary>
     /// Loads the message-to-session mappings from disk
     /// </summary>
@@ -660,7 +660,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                     }
                 }
             }
-            
+
             // Load minimal session data for result building
             var sessionsPath = Path.Combine(_indexPath, "sessions.json");
             if (File.Exists(sessionsPath))
@@ -671,7 +671,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                 {
                     var id = element.GetProperty("Id").GetString();
                     if (id == null) continue;
-                    
+
                     var session = new Session(
                         Id: id,
                         AgentType: element.TryGetProperty("AgentType", out var at) ? at.GetString() ?? "unknown" : "unknown",
@@ -687,7 +687,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                     _sessionCache[id] = session;
                 }
             }
-            
+
             // Load knowledge mappings
             var knowledgeMappingsPath = Path.Combine(_indexPath, "knowledge_mappings.json");
             if (File.Exists(knowledgeMappingsPath))
@@ -705,7 +705,7 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                     }
                 }
             }
-            
+
             // Load knowledge cache
             var knowledgePath = Path.Combine(_indexPath, "knowledge.json");
             if (File.Exists(knowledgePath))
@@ -716,11 +716,11 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
                 {
                     var id = element.GetProperty("Id").GetString();
                     if (id == null) continue;
-                    
-                    var tagsJson = element.TryGetProperty("Tags", out var tagsElement) 
+
+                    var tagsJson = element.TryGetProperty("Tags", out var tagsElement)
                         ? tagsElement.EnumerateArray().Select(t => t.GetString() ?? "").ToArray()
                         : Array.Empty<string>();
-                    
+
                     var entry = new KnowledgeEntry(
                         Id: id,
                         Content: element.TryGetProperty("Content", out var c) ? c.GetString() ?? "" : "",

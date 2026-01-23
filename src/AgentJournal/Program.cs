@@ -21,14 +21,14 @@ public class Program
         // Load configuration before DI setup (quick file read, acceptable for CLI startup)
         var configService = new ConfigurationService();
         var config = await configService.LoadConfigAsync();
-        
+
         // Ensure data directory exists
         Directory.CreateDirectory(config.DataPath);
 
         // Set up dependency injection with loaded config
         var services = new ServiceCollection();
         ConfigureServices(services, config);
-        
+
         // Use using to ensure proper disposal of services (including LuceneSearchEngine)
         await using var serviceProvider = services.BuildServiceProvider();
 
@@ -82,15 +82,15 @@ public class Program
         });
 
         // Storage - SQLite repository (using pre-loaded config)
-        services.AddSingleton<ISessionRepository>(sp => 
+        services.AddSingleton<ISessionRepository>(sp =>
             new SqliteSessionRepository(config.DatabasePath));
 
         // Knowledge Bank - SQLite repository
-        services.AddSingleton<IKnowledgeRepository>(sp => 
+        services.AddSingleton<IKnowledgeRepository>(sp =>
             new SqliteKnowledgeRepository(Path.Combine(config.DataPath, "knowledge.db")));
 
         // Content Repository - SQLite repository
-        services.AddSingleton<IContentRepository>(sp => 
+        services.AddSingleton<IContentRepository>(sp =>
             new SqliteContentRepository(Path.Combine(config.DataPath, "content.db")));
 
         // Embeddings - Try to create ONNX provider, fallback to hash-based
@@ -101,14 +101,14 @@ public class Program
         });
 
         // Search engines
-        services.AddSingleton<LuceneSearchEngine>(sp => 
+        services.AddSingleton<LuceneSearchEngine>(sp =>
             new LuceneSearchEngine(config.LuceneIndexPath));
-        
+
         services.AddSingleton<VectorSearchEngine>(sp =>
             new VectorSearchEngine(
                 Path.Combine(config.DataPath, "vector-index"),
                 sp.GetRequiredService<IEmbeddingProvider>()));
-        
+
         // HybridSearcher as main ISearchEngine (supports all modes)
         services.AddSingleton<ISearchEngine>(sp =>
             new HybridSearcher(

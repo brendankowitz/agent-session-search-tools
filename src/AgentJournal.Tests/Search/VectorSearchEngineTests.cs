@@ -60,7 +60,7 @@ public class VectorSearchEngineTests : IDisposable
         await _searchEngine.InitializeAsync();
         var session1 = CreateTestSession("session-1", "deep learning neural networks", "backpropagation");
         var session2 = CreateTestSession("session-2", "database query optimization", "indexing strategies");
-        
+
         await _searchEngine.IndexSessionAsync(session1);
         await _searchEngine.IndexSessionAsync(session2);
 
@@ -79,7 +79,7 @@ public class VectorSearchEngineTests : IDisposable
         await _searchEngine.InitializeAsync();
         var session1 = CreateTestSession("session-1", "duplicate content", "answer 1");
         var session2 = CreateTestSession("session-2", "duplicate content", "answer 2"); // Same user message
-        
+
         await _searchEngine.IndexSessionAsync(session1);
         await _searchEngine.IndexSessionAsync(session2);
 
@@ -235,8 +235,8 @@ public class VectorSearchEngineTests : IDisposable
     {
         // Arrange
         await _searchEngine.InitializeAsync();
-        var session = CreateTestSession("session-1", 
-            "This is a long message with important information about machine learning and neural networks", 
+        var session = CreateTestSession("session-1",
+            "This is a long message with important information about machine learning and neural networks",
             "answer");
         await _searchEngine.IndexSessionAsync(session);
 
@@ -292,7 +292,7 @@ public class VectorSearchEngineTests : IDisposable
     public void Dispose()
     {
         _searchEngine.Dispose();
-        
+
         if (Directory.Exists(_testIndexPath))
         {
             try

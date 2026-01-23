@@ -40,7 +40,7 @@ public class IndexCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new IndexCommand();
-        
+
         command.SetHandler(async (agentType, watch, rebuild) =>
         {
             var configService = serviceProvider.GetRequiredService<ConfigurationService>();
@@ -50,8 +50,8 @@ public class IndexCommand : Command
             var embeddingProvider = serviceProvider.GetRequiredService<IEmbeddingProvider>();
 
             await ExecuteAsync(
-                agentType, 
-                watch, 
+                agentType,
+                watch,
                 rebuild,
                 configService,
                 repository,
@@ -59,7 +59,7 @@ public class IndexCommand : Command
                 connectors,
                 embeddingProvider,
                 CancellationToken.None);
-        }, 
+        },
         command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing agent option"),
         command.Options[1] as Option<bool> ?? throw new InvalidOperationException("Missing watch option"),
         command.Options[2] as Option<bool> ?? throw new InvalidOperationException("Missing rebuild option"));
@@ -68,8 +68,8 @@ public class IndexCommand : Command
     }
 
     private static async Task ExecuteAsync(
-        string? agentType, 
-        bool watch, 
+        string? agentType,
+        bool watch,
         bool rebuild,
         ConfigurationService configService,
         ISessionRepository repository,
@@ -79,9 +79,9 @@ public class IndexCommand : Command
         CancellationToken ct)
     {
         var config = await configService.LoadConfigAsync(ct);
-        
+
         // Determine parallelism based on execution provider
-        var useParallelism = embeddingProvider is OnnxEmbeddingProvider onnx && 
+        var useParallelism = embeddingProvider is OnnxEmbeddingProvider onnx &&
                              onnx.ExecutionProvider.Contains("GPU", StringComparison.OrdinalIgnoreCase);
         var maxParallelism = useParallelism ? Environment.ProcessorCount : 1;
 
@@ -122,7 +122,7 @@ public class IndexCommand : Command
         foreach (var connector in connectorsToUse)
         {
             Console.WriteLine($"Indexing {connector.AgentType} sessions...");
-            
+
             try
             {
                 var sessionPaths = connector.GetSessionPaths().ToList();
@@ -143,8 +143,8 @@ public class IndexCommand : Command
                 if (useParallelism && sessions.Count > 1)
                 {
                     // Parallel indexing for GPU acceleration
-                    var options = new ParallelOptions 
-                    { 
+                    var options = new ParallelOptions
+                    {
                         MaxDegreeOfParallelism = maxParallelism,
                         CancellationToken = ct
                     };
@@ -162,11 +162,11 @@ public class IndexCommand : Command
                                 {
                                     // Debug output
                                     // Console.WriteLine($"Session: {session.LastModified.Value:O}, DB: {dbLastMod.Value:O}");
-                                    
+
                                     // Truncate to seconds for comparison to avoid precision issues
                                     var sessionTime = session.LastModified.Value;
                                     var dbTime = dbLastMod.Value;
-                                    
+
                                     // Allow for small difference (e.g. if DB loses precision)
                                     if (sessionTime <= dbTime.AddMilliseconds(100))
                                     {
@@ -195,15 +195,15 @@ public class IndexCommand : Command
 
                             // Save to repository (thread-safe via SQLite)
                             await repository.SaveSessionAsync(session, token);
-                            
+
                             // Index in search engine (thread-safe with locks)
                             await searchEngine.IndexSessionAsync(session, token);
-                            
+
                             lock (indexLock)
                             {
                                 indexed++;
                                 totalIndexed++;
-                                
+
                                 if (config.VerboseLogging)
                                 {
                                     Console.WriteLine($"  ✓ Indexed: {session.Id} ({session.MessageCount} messages)");
@@ -245,7 +245,7 @@ public class IndexCommand : Command
                                     // Truncate to seconds for comparison to avoid precision issues
                                     var sessionTime = session.LastModified.Value.ToUniversalTime();
                                     var dbTime = dbLastMod.Value.ToUniversalTime();
-                                    
+
                                     // Allow for small difference (e.g. if DB loses precision)
                                     if (sessionTime <= dbTime.AddMilliseconds(100))
                                     {
@@ -271,7 +271,7 @@ public class IndexCommand : Command
 
                             await repository.SaveSessionAsync(session, ct);
                             await searchEngine.IndexSessionAsync(session, ct);
-                            
+
                             indexed++;
                             totalIndexed++;
 
@@ -327,12 +327,12 @@ public class IndexCommand : Command
             Console.WriteLine();
             Console.WriteLine("Watch mode enabled - monitoring for new sessions...");
             Console.WriteLine("Press Ctrl+C to stop watching");
-            
+
             // Simple polling implementation (could be improved with FileSystemWatcher)
             while (!ct.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(10), ct);
-                
+
                 // Re-index (this is a simple approach; production would track what's new)
                 foreach (var connector in connectorsToUse)
                 {
@@ -355,7 +355,7 @@ public class IndexCommand : Command
 
                             await repository.SaveSessionAsync(session, ct);
                             await searchEngine.IndexSessionAsync(session, ct);
-                            
+
                             if (config.VerboseLogging)
                             {
                                 Console.WriteLine($"  ✓ Updated: {session.Id}");

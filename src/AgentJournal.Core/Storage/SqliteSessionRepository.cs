@@ -74,13 +74,13 @@ public class SqliteSessionRepository : ISessionRepository
         await command.ExecuteNonQueryAsync(ct);
 
         // Migration: Add last_modified column if it doesn't exist
-        try 
+        try
         {
             var alterCmd = connection.CreateCommand();
             alterCmd.CommandText = "ALTER TABLE sessions ADD COLUMN last_modified TEXT;";
             await alterCmd.ExecuteNonQueryAsync(ct);
         }
-        catch (SqliteException) 
+        catch (SqliteException)
         {
             // Column likely already exists, ignore
         }
@@ -308,7 +308,7 @@ public class SqliteSessionRepository : ISessionRepository
         command.Parameters.AddWithValue("@id", sessionId);
 
         var result = await command.ExecuteScalarAsync(ct);
-        
+
         if (result == null || result == DBNull.Value)
         {
             return null;

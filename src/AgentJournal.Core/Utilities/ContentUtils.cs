@@ -70,7 +70,7 @@ public static class ContentUtils
             if (!string.IsNullOrWhiteSpace(allowedBasePath))
             {
                 var fullBasePath = Path.GetFullPath(allowedBasePath);
-                
+
                 // Ensure the path is under the allowed base path
                 if (!fullPath.StartsWith(fullBasePath, StringComparison.OrdinalIgnoreCase))
                 {

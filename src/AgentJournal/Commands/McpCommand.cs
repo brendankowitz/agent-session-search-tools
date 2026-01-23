@@ -20,7 +20,7 @@ public class McpCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new McpCommand();
-        
+
         command.SetHandler(async () =>
         {
             var searchEngine = serviceProvider.GetRequiredService<ISearchEngine>();

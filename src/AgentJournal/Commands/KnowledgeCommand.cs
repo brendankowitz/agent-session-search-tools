@@ -19,7 +19,7 @@ public class KnowledgeCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new KnowledgeCommand();
-        
+
         // Add subcommands
         command.AddCommand(CreateListCommand(serviceProvider));
         command.AddCommand(CreateStatsCommand(serviceProvider));
@@ -243,7 +243,7 @@ public class KnowledgeCommand : Command
 
                 Console.WriteLine($"[{i + 1}] ID: {entry.Id}");
                 Console.Write($"    Decay: {decayFactor:F2} {RenderDecayBar(decayFactor)} ({decayStatus})");
-                
+
                 if (isExpiring)
                 {
                     Console.Write(" ⚠️ expiring");
@@ -252,7 +252,7 @@ public class KnowledgeCommand : Command
                 {
                     Console.Write(" ⚠️ decaying");
                 }
-                
+
                 Console.WriteLine();
 
                 if (entry.Tags.Length > 0)
@@ -437,7 +437,7 @@ public class KnowledgeCommand : Command
         try
         {
             threshold = Math.Clamp(threshold, 0.0, 1.0);
-            
+
             Console.WriteLine($"Pruning entries with decay factor below {threshold:F2}...");
 
             var pruned = await repository.PruneExpiredAsync(threshold, ct);
@@ -472,7 +472,7 @@ public class KnowledgeCommand : Command
         try
         {
             var entries = await repository.ListAsync(limit: int.MaxValue, ct: ct);
-            
+
             Console.WriteLine($"Clearing {entries.Count} knowledge entries...");
 
             var ids = entries.Select(e => e.Id).ToList();
@@ -497,48 +497,48 @@ public class KnowledgeCommand : Command
         const int barLength = 10;
         var filled = (int)Math.Round(decayFactor * barLength);
         var empty = barLength - filled;
-        
+
         return new string('█', filled) + new string('░', empty);
     }
 
     private static string RenderPercentageBar(int count, int total)
     {
         if (total == 0) return new string('░', 20);
-        
+
         const int barLength = 20;
         var percentage = (double)count / total;
         var filled = (int)Math.Round(percentage * barLength);
         var empty = barLength - filled;
-        
+
         return new string('█', filled) + new string('░', empty);
     }
 
     private static string FormatTimeSince(DateTime timestamp)
     {
         var span = DateTime.UtcNow - timestamp;
-        
+
         if (span.TotalDays < 1)
         {
-            return span.TotalHours < 1 
+            return span.TotalHours < 1
                 ? $"{(int)span.TotalMinutes} minutes ago"
                 : $"{(int)span.TotalHours} hours ago";
         }
-        
+
         if (span.TotalDays < 7)
         {
             return $"{(int)span.TotalDays} days ago";
         }
-        
+
         if (span.TotalDays < 30)
         {
             return $"{(int)(span.TotalDays / 7)} weeks ago";
         }
-        
+
         if (span.TotalDays < 365)
         {
             return $"{(int)(span.TotalDays / 30)} months ago";
         }
-        
+
         return $"{(int)(span.TotalDays / 365)} years ago";
     }
 

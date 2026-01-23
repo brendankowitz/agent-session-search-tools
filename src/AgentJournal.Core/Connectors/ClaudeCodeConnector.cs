@@ -68,7 +68,7 @@ public class ClaudeCodeConnector : IAgentConnector
         {
             var lastModified = File.GetLastWriteTimeUtc(sessionPath);
             var records = new List<ClaudeCodeRecord>();
-            
+
             // Read JSONL file line by line
             await foreach (var line in File.ReadLinesAsync(sessionPath, ct))
             {

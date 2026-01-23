@@ -20,7 +20,7 @@ public class ModelsCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new ModelsCommand();
-        
+
         // Wire up subcommands with service provider
         foreach (var subCommand in command.Subcommands)
         {
@@ -37,7 +37,7 @@ public class ModelsCommand : Command
                 removeCmd.SetupHandler(serviceProvider);
             }
         }
-        
+
         return command;
     }
 }
@@ -71,7 +71,7 @@ public class ListModelsCommand : Command
 
         Console.WriteLine("Installed Embedding Models:");
         Console.WriteLine($"Models Path: {modelsPath}");
-        
+
         // Show active execution provider
         if (embeddingProvider is OnnxEmbeddingProvider onnxProvider)
         {
@@ -87,7 +87,7 @@ public class ListModelsCommand : Command
         }
 
         var modelDirs = Directory.GetDirectories(modelsPath);
-        
+
         if (modelDirs.Length == 0)
         {
             Console.WriteLine("No models installed.");
@@ -102,16 +102,16 @@ public class ListModelsCommand : Command
             var modelName = Path.GetFileName(modelDir);
             var modelFile = Path.Combine(modelDir, "model.onnx");
             var tokenizerFile = Path.Combine(modelDir, "tokenizer.json");
-            
+
             var hasModel = File.Exists(modelFile);
             var hasTokenizer = File.Exists(tokenizerFile);
             var status = (hasModel && hasTokenizer) ? "✓ Ready" : "✗ Incomplete";
-            
+
             var size = ModelCommandHelpers.GetDirectorySize(modelDir);
             var sizeStr = ModelCommandHelpers.FormatBytes(size);
 
             Console.WriteLine($"  {modelName,-20} {status,-15} {sizeStr,10}");
-            
+
             if (!hasModel)
             {
                 Console.WriteLine($"    Missing: model.onnx");
@@ -159,7 +159,7 @@ public class DownloadModelCommand : Command
         CancellationToken ct)
     {
         name = ModelCommandHelpers.ValidateModelName(name);
-        
+
         var config = await configService.LoadConfigAsync(ct);
         var modelsPath = Path.Combine(config.DataPath, "models");
         var modelDir = Path.Combine(modelsPath, name);
@@ -176,7 +176,7 @@ public class DownloadModelCommand : Command
             Console.WriteLine($"Model '{name}' already exists.");
             Console.Write("Overwrite? (y/N): ");
             var response = Console.ReadLine()?.Trim().ToLowerInvariant();
-            
+
             if (response != "y" && response != "yes")
             {
                 Console.WriteLine("Download cancelled.");
@@ -260,7 +260,7 @@ public class RemoveModelCommand : Command
         CancellationToken ct)
     {
         name = ModelCommandHelpers.ValidateModelName(name);
-        
+
         var config = await configService.LoadConfigAsync(ct);
         var modelsPath = Path.Combine(config.DataPath, "models");
         var modelDir = Path.Combine(modelsPath, name);
@@ -277,9 +277,9 @@ public class RemoveModelCommand : Command
         Console.WriteLine($"Remove model: {name}");
         Console.WriteLine($"Size: {sizeStr}");
         Console.Write("Are you sure? (y/N): ");
-        
+
         var response = Console.ReadLine()?.Trim().ToLowerInvariant();
-        
+
         if (response != "y" && response != "yes")
         {
             Console.WriteLine("Removal cancelled.");
@@ -310,7 +310,7 @@ internal static class ModelCommandHelpers
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Model name is required.", nameof(name));
-        
+
         // Prevent path traversal
         if (name.Contains("..", StringComparison.Ordinal) ||
             name.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]) >= 0 ||
@@ -318,17 +318,17 @@ internal static class ModelCommandHelpers
         {
             throw new ArgumentException("Model name must not contain path separators or '..'.", nameof(name));
         }
-        
+
         // Ensure name is filesystem safe
         var safeName = Path.GetFileName(name);
         if (!string.Equals(name, safeName, StringComparison.Ordinal))
         {
             throw new ArgumentException("Invalid model name.", nameof(name));
         }
-        
+
         return name;
     }
-    
+
     /// <summary>
     /// Gets the size of a directory recursively
     /// </summary>
@@ -338,7 +338,7 @@ internal static class ModelCommandHelpers
         return dirInfo.EnumerateFiles("*", SearchOption.AllDirectories)
             .Sum(file => file.Length);
     }
-    
+
     /// <summary>
     /// Formats bytes as human-readable string
     /// </summary>
@@ -347,13 +347,13 @@ internal static class ModelCommandHelpers
         string[] sizes = ["B", "KB", "MB", "GB"];
         double len = bytes;
         int order = 0;
-        
+
         while (len >= 1024 && order < sizes.Length - 1)
         {
             order++;
             len /= 1024;
         }
-        
+
         return $"{len:0.##} {sizes[order]}";
     }
 }

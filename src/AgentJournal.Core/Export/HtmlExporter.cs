@@ -39,7 +39,7 @@ public class HtmlExporter : IExporter
     {
         var sessionList = sessions.ToList();
         var template = Template.Parse(GetMultipleSessionsTemplate());
-        
+
         var scriptObject = new ScriptObject
         {
             { "sessions", sessionList },
@@ -47,10 +47,10 @@ public class HtmlExporter : IExporter
             { "export_date", DateTime.Now },
             { "total_sessions", sessionList.Count }
         };
-        
+
         var context = new TemplateContext();
         context.PushGlobal(scriptObject);
-        
+
         var html = template.Render(context);
         return Task.FromResult(html);
     }
@@ -72,7 +72,7 @@ public class HtmlExporter : IExporter
 
         var context = new TemplateContext();
         context.PushGlobal(scriptObject);
-        
+
         return scriptObject;
     }
 
@@ -80,7 +80,7 @@ public class HtmlExporter : IExporter
     {
         if (string.IsNullOrEmpty(text))
             return string.Empty;
-        
+
         return HttpUtility.HtmlEncode(text);
     }
 
@@ -88,7 +88,7 @@ public class HtmlExporter : IExporter
     {
         if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
             return text ?? string.Empty;
-        
+
         return text[..maxLength] + "...";
     }
 
@@ -96,20 +96,20 @@ public class HtmlExporter : IExporter
     {
         if (!duration.HasValue)
             return "N/A";
-        
+
         var d = duration.Value;
         if (d.TotalMinutes < 1)
             return $"{d.Seconds}s";
         if (d.TotalHours < 1)
             return $"{d.Minutes}m {d.Seconds}s";
-        
+
         return $"{(int)d.TotalHours}h {d.Minutes}m";
     }
 
     private string GetSingleSessionTemplate()
     {
         var isDark = _options.Theme.Equals("dark", StringComparison.OrdinalIgnoreCase);
-        var cssVars = isDark 
+        var cssVars = isDark
             ? "--bg: #1a1a2e; --text: #eee; --user-bg: #0f3460; --assistant-bg: #16213e; --header-border: #333; --tool-bg: #1e1e1e; --code-bg: #0d0d0d;"
             : "--bg: #ffffff; --text: #333; --user-bg: #e3f2fd; --assistant-bg: #f5f5f5; --header-border: #ddd; --tool-bg: #f9f9f9; --code-bg: #f5f5f5;";
 
@@ -360,7 +360,7 @@ public class HtmlExporter : IExporter
     private string GetMultipleSessionsTemplate()
     {
         var isDark = _options.Theme.Equals("dark", StringComparison.OrdinalIgnoreCase);
-        var cssVars = isDark 
+        var cssVars = isDark
             ? "--bg: #1a1a2e; --text: #eee; --card-bg: #16213e; --header-border: #333; --hover-bg: #0f3460;"
             : "--bg: #ffffff; --text: #333; --card-bg: #f5f5f5; --header-border: #ddd; --hover-bg: #e3f2fd;";
 

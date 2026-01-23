@@ -14,7 +14,7 @@ public static class AjviIndexTest
     {
         const string testIndexPath = "test_index.ajvi";
         const int dimensions = 384; // Common for all-MiniLM-L6-v2
-        
+
         try
         {
             // Clean up any existing test file
@@ -35,10 +35,10 @@ public static class AjviIndexTest
                     var messageId = Guid.NewGuid();
                     byte agentType = (byte)(i % 2); // Alternate between copilot (0) and claude (1)
                     long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    
+
                     // Create a random normalized vector
                     var vector = CreateRandomNormalizedVector(dimensions, seed: i);
-                    
+
                     index.AddEntry(contentHash, messageId, agentType, timestamp, vector);
                 }
 
@@ -54,7 +54,7 @@ public static class AjviIndexTest
                 // Test search
                 var queryVector = CreateRandomNormalizedVector(dimensions, seed: 0);
                 var results = index.Search(queryVector, topK: 5);
-                
+
                 Console.WriteLine($"\nSearch results (top 5):");
                 foreach (var (idx, score) in results)
                 {

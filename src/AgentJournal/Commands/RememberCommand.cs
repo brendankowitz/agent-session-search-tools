@@ -41,7 +41,7 @@ public class RememberCommand : Command
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new RememberCommand();
-        
+
         command.SetHandler(async (content, tags, project, source) =>
         {
             var repository = serviceProvider.GetRequiredService<IKnowledgeRepository>();
@@ -55,7 +55,7 @@ public class RememberCommand : Command
                 repository,
                 configService,
                 CancellationToken.None);
-        }, 
+        },
         command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing content argument"),
         command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing tags option"),
         command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
@@ -115,17 +115,17 @@ public class RememberCommand : Command
             Console.WriteLine($"✓ Knowledge stored successfully");
             Console.WriteLine($"  ID: {saved.Id}");
             Console.WriteLine($"  Content: {TruncateContent(saved.Content, 80)}");
-            
+
             if (saved.Tags.Length > 0)
             {
                 Console.WriteLine($"  Tags: {string.Join(", ", saved.Tags)}");
             }
-            
+
             if (!string.IsNullOrWhiteSpace(saved.Project))
             {
                 Console.WriteLine($"  Project: {saved.Project}");
             }
-            
+
             if (!string.IsNullOrWhiteSpace(saved.Source))
             {
                 Console.WriteLine($"  Source: {saved.Source}");

@@ -13,10 +13,10 @@ public class HybridSearcher : ISearchEngine, IDisposable
     private readonly float _semanticWeight;
     private readonly int _rrfK;  // RRF constant, typically 60
     private bool _disposed;
-    
-    public IReadOnlyList<SearchMode> SupportedModes { get; } = 
+
+    public IReadOnlyList<SearchMode> SupportedModes { get; } =
         [SearchMode.Lexical, SearchMode.Semantic, SearchMode.Hybrid];
-    
+
     /// <summary>
     /// Creates a new hybrid searcher combining lexical and semantic search
     /// </summary>
@@ -67,7 +67,7 @@ public class HybridSearcher : ISearchEngine, IDisposable
     public async Task IndexSessionsAsync(IEnumerable<Session> sessions, CancellationToken ct = default)
     {
         var sessionList = sessions.ToList(); // Materialize to avoid multiple enumeration
-        
+
         await Task.WhenAll(
             _lexicalEngine.IndexSessionsAsync(sessionList, ct),
             _vectorEngine.IndexSessionsAsync(sessionList, ct)
@@ -88,10 +88,10 @@ public class HybridSearcher : ISearchEngine, IDisposable
         ArgumentNullException.ThrowIfNull(query);
         if (maxResults <= 0 || maxResults > 1000)
         {
-            throw new ArgumentOutOfRangeException(nameof(maxResults), 
+            throw new ArgumentOutOfRangeException(nameof(maxResults),
                 "maxResults must be between 1 and 1000.");
         }
-        
+
         if (string.IsNullOrWhiteSpace(query))
         {
             return Array.Empty<SearchResult>();
@@ -121,32 +121,32 @@ public class HybridSearcher : ISearchEngine, IDisposable
     /// Performs hybrid search using Reciprocal Rank Fusion (RRF)
     /// </summary>
     private async Task<IReadOnlyList<SearchResult>> HybridSearchAsync(
-        string query, 
+        string query,
         int maxResults,
         int contextCount,
         CancellationToken ct)
     {
         // 1. Fetch 3x results from each engine for better fusion
         var fetchCount = maxResults * 3;
-        
+
         // 2. Run both searches in parallel
         var lexicalTask = _lexicalEngine.SearchAsync(query, SearchMode.Lexical, fetchCount, contextCount, ct);
         var semanticTask = _vectorEngine.SearchAsync(query, SearchMode.Semantic, fetchCount, contextCount, ct);
-        
+
         await Task.WhenAll(lexicalTask, semanticTask);
-        
+
         var lexicalResults = await lexicalTask;
         var semanticResults = await semanticTask;
 
         // 3. Apply RRF scoring
         var fusedScores = new Dictionary<string, (double Score, SearchResult Result)>();
-        
+
         // Score lexical results (1-based ranking)
         for (int rank = 0; rank < lexicalResults.Count; rank++)
         {
             var result = lexicalResults[rank];
             var rrfScore = _lexicalWeight / (_rrfK + rank + 1);
-            
+
             if (fusedScores.TryGetValue(result.Session.Id, out var existing))
             {
                 fusedScores[result.Session.Id] = (existing.Score + rrfScore, result);
@@ -156,13 +156,13 @@ public class HybridSearcher : ISearchEngine, IDisposable
                 fusedScores[result.Session.Id] = (rrfScore, result);
             }
         }
-        
+
         // Score semantic results (1-based ranking)
         for (int rank = 0; rank < semanticResults.Count; rank++)
         {
             var result = semanticResults[rank];
             var rrfScore = _semanticWeight / (_rrfK + rank + 1);
-            
+
             if (fusedScores.TryGetValue(result.Session.Id, out var existing))
             {
                 fusedScores[result.Session.Id] = (existing.Score + rrfScore, existing.Result);
@@ -172,7 +172,7 @@ public class HybridSearcher : ISearchEngine, IDisposable
                 fusedScores[result.Session.Id] = (rrfScore, result);
             }
         }
-        
+
         // 4. Sort by fused score and return top results
         return fusedScores.Values
             .OrderByDescending(x => x.Score)
