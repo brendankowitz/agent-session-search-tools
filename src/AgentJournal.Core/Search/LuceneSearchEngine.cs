@@ -30,7 +30,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     private const string FIELD_TIMESTAMP = "timestamp";
     
     private readonly string _indexPath;
-    private readonly SemaphoreSlim _indexLock = new(1, 1);
+    private readonly ReaderWriterLockSlim _indexLock = new(LockRecursionPolicy.NoRecursion);
     private readonly ConcurrentDictionary<string, Session> _sessionCache = new();
     
     private FSDirectory? _directory;
@@ -54,7 +54,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await _indexLock.WaitAsync(ct);
+        _indexLock.EnterWriteLock();
         try
         {
             if (_directory != null)
@@ -82,10 +82,12 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             _writer.Commit(); // Ensure index is created
 
             _searcherManager = new SearcherManager(_writer, true, null);
+
+            await Task.CompletedTask; // Satisfy async signature
         }
         finally
         {
-            _indexLock.Release();
+            _indexLock.ExitWriteLock();
         }
     }
 
@@ -95,14 +97,14 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     public async Task IndexSessionAsync(Session session, CancellationToken ct = default)
     {
         EnsureInitialized();
-        
-        await _indexLock.WaitAsync(ct);
+
+        _indexLock.EnterWriteLock();
         try
         {
             // Delete any existing documents for this session first to handle updates
             var sessionTerm = new Term(FIELD_SESSION_ID, session.Id);
             _writer!.DeleteDocuments(sessionTerm);
-            
+
             // Cache the session for retrieval during search
             _sessionCache[session.Id] = session;
 
@@ -119,10 +121,12 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             // Commit changes and refresh searcher (blocking to ensure visibility)
             _writer!.Commit();
             _searcherManager?.MaybeRefreshBlocking();
+
+            await Task.CompletedTask; // Satisfy async signature
         }
         finally
         {
-            _indexLock.Release();
+            _indexLock.ExitWriteLock();
         }
     }
 
@@ -132,18 +136,18 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     public async Task IndexSessionsAsync(IEnumerable<Session> sessions, CancellationToken ct = default)
     {
         EnsureInitialized();
-        
-        await _indexLock.WaitAsync(ct);
+
+        _indexLock.EnterWriteLock();
         try
         {
             foreach (var session in sessions)
             {
                 ct.ThrowIfCancellationRequested();
-                
+
                 // Delete any existing documents for this session first
                 var sessionTerm = new Term(FIELD_SESSION_ID, session.Id);
                 _writer!.DeleteDocuments(sessionTerm);
-                
+
                 // Cache the session
                 _sessionCache[session.Id] = session;
 
@@ -161,10 +165,12 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             // Commit changes and refresh searcher (blocking to ensure visibility)
             _writer!.Commit();
             _searcherManager?.MaybeRefreshBlocking();
+
+            await Task.CompletedTask; // Satisfy async signature
         }
         finally
         {
-            _indexLock.Release();
+            _indexLock.ExitWriteLock();
         }
     }
 
@@ -303,18 +309,20 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     public async Task ClearIndexAsync(CancellationToken ct = default)
     {
         EnsureInitialized();
-        
-        await _indexLock.WaitAsync(ct);
+
+        _indexLock.EnterWriteLock();
         try
         {
             _writer!.DeleteAll();
             _writer.Commit();
             _sessionCache.Clear();
             _searcherManager?.MaybeRefresh();
+
+            await Task.CompletedTask; // Satisfy async signature
         }
         finally
         {
-            _indexLock.Release();
+            _indexLock.ExitWriteLock();
         }
     }
 
@@ -324,8 +332,8 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     public async Task DeleteSessionAsync(string sessionId, CancellationToken ct = default)
     {
         EnsureInitialized();
-        
-        await _indexLock.WaitAsync(ct);
+
+        _indexLock.EnterWriteLock();
         try
         {
             var term = new Term(FIELD_SESSION_ID, sessionId);
@@ -333,10 +341,12 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             _writer.Commit();
             _sessionCache.TryRemove(sessionId, out _);
             _searcherManager?.MaybeRefresh();
+
+            await Task.CompletedTask; // Satisfy async signature
         }
         finally
         {
-            _indexLock.Release();
+            _indexLock.ExitWriteLock();
         }
     }
 
@@ -346,18 +356,20 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     public async Task<IndexStats> GetIndexStatsAsync(CancellationToken ct = default)
     {
         EnsureInitialized();
-        
-        await _indexLock.WaitAsync(ct);
+
+        _indexLock.EnterReadLock();
         try
         {
             var docCount = _writer!.NumDocs;
             var maxDoc = _writer.MaxDoc;
-            
+
             // Calculate directory size
             var directoryInfo = new DirectoryInfo(_indexPath);
-            var sizeBytes = directoryInfo.Exists 
+            var sizeBytes = directoryInfo.Exists
                 ? directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length)
                 : 0;
+
+            await Task.CompletedTask; // Satisfy async signature
 
             return new IndexStats(
                 DocumentCount: docCount,
@@ -368,7 +380,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         }
         finally
         {
-            _indexLock.Release();
+            _indexLock.ExitReadLock();
         }
     }
 
@@ -510,7 +522,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         _writer?.Dispose();
         _analyzer?.Dispose();
         _directory?.Dispose();
-        _indexLock.Dispose();
+        _indexLock?.Dispose();
 
         _disposed = true;
         GC.SuppressFinalize(this);
