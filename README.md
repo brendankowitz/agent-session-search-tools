@@ -1,5 +1,3 @@
-<div align="center">
-
 # 📓 Agent Journal
 
 **Index, search, and learn from your AI agent conversations**
@@ -9,8 +7,6 @@
 [![NuGet](https://img.shields.io/badge/NuGet-agent--journal-blue?logo=nuget)](https://www.nuget.org/packages/AgentJournal)
 
 *A .NET global tool and MCP server for managing AI agent session history with intelligent search and knowledge decay.*
-
-</div>
 
 ---
 
@@ -352,8 +348,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-<div align="center">
-
 **Agent Journal** — *Your AI conversations, searchable and remembered.*
-
-</div>
