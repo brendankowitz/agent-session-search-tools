@@ -158,30 +158,39 @@ public class VectorSearchEngine : ISearchEngine, IDisposable
     {
         EnsureInitialized();
 
+        // Phase 1: Embed all sessions OUTSIDE the lock (async-safe)
+        var sessionEmbeddings = new List<(Session Session, List<Message> Messages, float[][] Embeddings)>();
+
+        foreach (var session in sessions)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // Cache the session for retrieval during search
+            _sessionCache[session.Id] = session;
+
+            // Process each message that has content
+            var messagesToEmbed = session.Messages
+                .Where(m => !string.IsNullOrWhiteSpace(m.Content))
+                .ToList();
+
+            if (messagesToEmbed.Count == 0)
+            {
+                continue;
+            }
+
+            // Batch embed all messages (outside the lock)
+            var contents = messagesToEmbed.Select(m => m.Content).ToList();
+            var embeddings = await _embedder.EmbedBatchAsync(contents, ct);
+
+            sessionEmbeddings.Add((session, messagesToEmbed, embeddings));
+        }
+
+        // Phase 2: Mutate the index INSIDE the lock (synchronous only)
         _rwLock.EnterWriteLock();
         try
         {
-            foreach (var session in sessions)
+            foreach (var (session, messagesToEmbed, embeddings) in sessionEmbeddings)
             {
-                ct.ThrowIfCancellationRequested();
-
-                // Cache the session for retrieval during search
-                _sessionCache[session.Id] = session;
-
-                // Process each message that has content
-                var messagesToEmbed = session.Messages
-                    .Where(m => !string.IsNullOrWhiteSpace(m.Content))
-                    .ToList();
-
-                if (messagesToEmbed.Count == 0)
-                {
-                    continue;
-                }
-
-                // Batch embed all messages
-                var contents = messagesToEmbed.Select(m => m.Content).ToList();
-                var embeddings = await _embedder.EmbedBatchAsync(contents, ct);
-
                 // Add each embedding to the index
                 for (int i = 0; i < messagesToEmbed.Count; i++)
                 {

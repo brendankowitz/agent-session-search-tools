@@ -37,6 +37,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     private Analyzer? _analyzer;
     private IndexWriter? _writer;
     private SearcherManager? _searcherManager;
+    private bool _readOnly;
     private bool _disposed;
 
     public IReadOnlyList<SearchMode> SupportedModes { get; } = new[] { SearchMode.Lexical };
@@ -50,7 +51,8 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     }
 
     /// <summary>
-    /// Initializes the Lucene index and creates the directory if needed
+    /// Initializes the Lucene index in read-only mode.
+    /// Write access is acquired lazily on the first write operation.
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -71,19 +73,16 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             _directory = FSDirectory.Open(_indexPath);
             _analyzer = new StandardAnalyzer(LUCENE_VERSION);
 
-            var indexConfig = new IndexWriterConfig(LUCENE_VERSION, _analyzer)
+            // Start in read-only mode; upgrade to write on demand
+            _writer = null;
+            _readOnly = true;
+
+            if (DirectoryReader.IndexExists(_directory))
             {
-                OpenMode = OpenMode.CREATE_OR_APPEND,
-                // Use BM25 similarity for better ranking
-                Similarity = new BM25Similarity()
-            };
+                _searcherManager = new SearcherManager(_directory, null);
+            }
 
-            _writer = new IndexWriter(_directory, indexConfig);
-            _writer.Commit(); // Ensure index is created
-
-            _searcherManager = new SearcherManager(_writer, true, null);
-
-            await Task.CompletedTask; // Satisfy async signature
+            await Task.CompletedTask;
         }
         finally
         {
@@ -96,7 +95,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     /// </summary>
     public async Task IndexSessionAsync(Session session, CancellationToken ct = default)
     {
-        EnsureInitialized();
+        EnsureWritable();
 
         _indexLock.EnterWriteLock();
         try
@@ -135,7 +134,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     /// </summary>
     public async Task IndexSessionsAsync(IEnumerable<Session> sessions, CancellationToken ct = default)
     {
-        EnsureInitialized();
+        EnsureWritable();
 
         _indexLock.EnterWriteLock();
         try
@@ -308,7 +307,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     /// </summary>
     public async Task ClearIndexAsync(CancellationToken ct = default)
     {
-        EnsureInitialized();
+        EnsureWritable();
 
         _indexLock.EnterWriteLock();
         try
@@ -331,7 +330,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     /// </summary>
     public async Task DeleteSessionAsync(string sessionId, CancellationToken ct = default)
     {
-        EnsureInitialized();
+        EnsureWritable();
 
         _indexLock.EnterWriteLock();
         try
@@ -360,8 +359,27 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         _indexLock.EnterReadLock();
         try
         {
-            var docCount = _writer!.NumDocs;
-            var maxDoc = _writer.MaxDoc;
+            int docCount = 0;
+            int maxDoc = 0;
+
+            if (_writer != null)
+            {
+                docCount = _writer.NumDocs;
+                maxDoc = _writer.MaxDoc;
+            }
+            else if (_searcherManager != null)
+            {
+                var searcher = _searcherManager.Acquire();
+                try
+                {
+                    docCount = searcher.IndexReader.NumDocs;
+                    maxDoc = searcher.IndexReader.MaxDoc;
+                }
+                finally
+                {
+                    _searcherManager.Release(searcher);
+                }
+            }
 
             // Calculate directory size
             var directoryInfo = new DirectoryInfo(_indexPath);
@@ -505,9 +523,65 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
 
     private void EnsureInitialized()
     {
-        if (_directory == null || _writer == null || _analyzer == null)
+        if (_directory == null || _analyzer == null)
         {
             throw new InvalidOperationException("LuceneSearchEngine must be initialized before use. Call InitializeAsync first.");
+        }
+    }
+
+    private void EnsureWritable()
+    {
+        EnsureInitialized();
+
+        if (!_readOnly && _writer != null)
+        {
+            return; // Already in write mode
+        }
+
+        // Upgrade from read-only to read-write
+        _indexLock.EnterWriteLock();
+        try
+        {
+            if (!_readOnly && _writer != null)
+            {
+                return; // Double-check after acquiring lock
+            }
+
+            // Dispose the read-only SearcherManager before upgrading
+            _searcherManager?.Dispose();
+            _searcherManager = null;
+
+            // Clear stale lock from previous crash
+            if (IndexWriter.IsLocked(_directory!))
+            {
+                try { IndexWriter.Unlock(_directory!); } catch { /* held by live process */ }
+            }
+
+            var indexConfig = new IndexWriterConfig(LUCENE_VERSION, _analyzer!)
+            {
+                OpenMode = OpenMode.CREATE_OR_APPEND,
+                Similarity = new BM25Similarity()
+            };
+
+            _writer = new IndexWriter(_directory!, indexConfig);
+            _writer.Commit();
+            _searcherManager = new SearcherManager(_writer, true, null);
+            _readOnly = false;
+        }
+        catch (LockObtainFailedException)
+        {
+            // Re-establish read-only SearcherManager if upgrade failed
+            if (_searcherManager == null && DirectoryReader.IndexExists(_directory!))
+            {
+                _searcherManager = new SearcherManager(_directory!, null);
+            }
+            throw new InvalidOperationException(
+                "Cannot acquire write lock — another process (e.g., MCP server) holds it. " +
+                "Stop the other agent-journal process to enable writes.");
+        }
+        finally
+        {
+            _indexLock.ExitWriteLock();
         }
     }
 

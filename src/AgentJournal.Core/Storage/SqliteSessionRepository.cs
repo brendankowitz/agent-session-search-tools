@@ -13,7 +13,14 @@ public class SqliteSessionRepository : ISessionRepository
 
     public SqliteSessionRepository(string databasePath)
     {
-        _connectionString = $"Data Source={databasePath}";
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Shared,
+            Pooling = true
+        };
+        _connectionString = builder.ToString();
     }
 
     /// <summary>
@@ -84,6 +91,11 @@ public class SqliteSessionRepository : ISessionRepository
         {
             // Column likely already exists, ignore
         }
+
+        // Enable WAL mode for concurrent read/write access
+        var walCmd = connection.CreateCommand();
+        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
+        await walCmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>

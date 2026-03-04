@@ -93,6 +93,11 @@ public class SqliteContentRepository : IContentRepository
         ";
 
         await command.ExecuteNonQueryAsync(ct);
+
+        // Enable WAL mode for concurrent read/write access
+        var walCmd = connection.CreateCommand();
+        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
+        await walCmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>
