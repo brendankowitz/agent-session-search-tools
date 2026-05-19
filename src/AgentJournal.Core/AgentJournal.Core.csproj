@@ -25,7 +25,7 @@
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="1.0.0" />
     <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="1.0.0" />
     <PackageReference Include="ModelContextProtocol" Version="0.6.0-preview.1" />
-    <PackageReference Include="Scriban" Version="6.5.2" />
+    <PackageReference Include="Scriban" Version="7.2.0" />
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.1" />
   </ItemGroup>
 
