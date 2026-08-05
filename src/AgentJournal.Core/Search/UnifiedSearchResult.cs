@@ -1,5 +1,6 @@
 using AgentJournal.Core.Models;
 using AgentJournal.Core.Knowledge;
+using AgentJournal.Core.Tasks;
 
 namespace AgentJournal.Core.Search;
 
@@ -16,7 +17,12 @@ public enum SearchResultType
     /// <summary>
     /// Result is a knowledge entry
     /// </summary>
-    Knowledge
+    Knowledge,
+
+    /// <summary>
+    /// Result is a task journal note or artifact
+    /// </summary>
+    Task
 }
 
 /// <summary>
@@ -60,6 +66,18 @@ public record UnifiedSearchResult
     public IReadOnlyList<Message>? MatchingMessages { get; init; }
 
     /// <summary>
+    /// Ids of the messages that actually matched the query. <see cref="MatchingMessages"/> is
+    /// context-expanded, so this is the only way to tell a real match from surrounding context.
+    /// </summary>
+    public IReadOnlyList<string>? MatchedMessageIds { get; init; }
+
+    /// <summary>
+    /// Whether the supplied message actually matched the query rather than being included as context.
+    /// </summary>
+    public bool IsMatch(Message message) =>
+        MatchedMessageIds != null && MatchedMessageIds.Contains(message.Id);
+
+    /// <summary>
     /// Creates a unified search result from a session search result
     /// </summary>
     public static UnifiedSearchResult FromSession(SearchResult result)
@@ -71,7 +89,8 @@ public record UnifiedSearchResult
             Score = result.Score,
             Data = result.Session,
             Highlight = result.Highlight,
-            MatchingMessages = result.MatchingMessages
+            MatchingMessages = result.MatchingMessages,
+            MatchedMessageIds = result.MatchedMessageIds
         };
     }
 
@@ -88,6 +107,23 @@ public record UnifiedSearchResult
             Data = result.Entry,
             DecayFactor = result.DecayFactor,
             Highlight = result.Highlight
+        };
+    }
+
+    /// <summary>
+    /// Creates a unified search result from a task journal search result
+    /// </summary>
+    public static UnifiedSearchResult FromTask(TaskSearchResult result)
+    {
+        return new UnifiedSearchResult
+        {
+            // Task rows have no global id, so compose one that is stable and lets a caller run
+            // `task show` against the right journal.
+            Id = $"{result.JournalName}#{result.TaskNumber}:{result.Kind}",
+            Type = SearchResultType.Task,
+            Score = result.Score,
+            Data = result,
+            Highlight = result.Excerpt
         };
     }
 
@@ -140,6 +176,20 @@ public record UnifiedSearchResult
             return true;
         }
         entry = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get the underlying task journal result
+    /// </summary>
+    public bool TryGetTask(out TaskSearchResult? task)
+    {
+        if (Type == SearchResultType.Task && Data is TaskSearchResult t)
+        {
+            task = t;
+            return true;
+        }
+        task = null;
         return false;
     }
 }

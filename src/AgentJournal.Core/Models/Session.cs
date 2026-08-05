@@ -52,4 +52,27 @@ public record Session(
     /// Gets the total number of tool calls in the session
     /// </summary>
     public int ToolCallCount => AllToolCalls.Count();
+
+    /// <summary>
+    /// Returns a copy of this session containing only its last <paramref name="count"/> messages.
+    /// </summary>
+    /// <param name="count">
+    /// Number of trailing messages to keep. Values of zero or less, or values at or above
+    /// <see cref="MessageCount"/>, return the session unchanged.
+    /// </param>
+    /// <remarks>
+    /// Session metadata (including <see cref="StartedAt"/>) is deliberately preserved so the
+    /// truncated view still identifies the full session it came from. Only <see cref="Messages"/>
+    /// is narrowed, which means derived counts such as <see cref="MessageCount"/> describe the
+    /// returned slice rather than the original session.
+    /// </remarks>
+    public Session WithLastMessages(int count)
+    {
+        if (count <= 0 || count >= Messages.Count)
+        {
+            return this;
+        }
+
+        return this with { Messages = Messages.Skip(Messages.Count - count).ToList() };
+    }
 }

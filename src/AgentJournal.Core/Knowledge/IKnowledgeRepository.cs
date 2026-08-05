@@ -36,7 +36,13 @@ public interface IKnowledgeRepository
     /// <param name="query">Search query text</param>
     /// <param name="tags">Filter by tags</param>
     /// <param name="project">Filter by project</param>
-    /// <param name="mode">Search mode (keyword or semantic)</param>
+    /// <param name="mode">
+    /// Requested search mode. NOTE: the SQLite implementation currently serves every mode with
+    /// FTS5 lexical search - knowledge entries are not embedded, so there is no vector index to
+    /// query. The parameter is honoured in the contract so callers can keep expressing intent, but
+    /// implementations that cannot satisfy a mode must not pretend they did; see
+    /// <see cref="KnowledgeSearchResult"/> consumers, which surface the effective mode to the user.
+    /// </param>
     /// <param name="maxResults">Maximum number of results</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Search results with decay applied to scores</returns>

@@ -11,44 +11,52 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class RecallCommand : Command
 {
+    private readonly Argument<string> _queryArgument;
+    private readonly Option<string?> _tagsOption;
+    private readonly Option<string?> _projectOption;
+    private readonly Option<string?> _modeOption;
+    private readonly Option<int> _limitOption;
+    private readonly Option<bool> _jsonOption;
+
     private RecallCommand() : base("recall", "Search and recall knowledge from the knowledge bank")
     {
-        var queryArgument = new Argument<string>(
+        _queryArgument = new Argument<string>(
             name: "query",
             description: "Search query for knowledge recall");
 
-        var tagsOption = new Option<string?>(
+        _tagsOption = new Option<string?>(
             name: "--tags",
             description: "Filter by comma-separated tags");
-        tagsOption.AddAlias("-t");
+        _tagsOption.AddAlias("-t");
 
-        var projectOption = new Option<string?>(
+        _projectOption = new Option<string?>(
             name: "--project",
             description: "Filter by project name or path");
-        projectOption.AddAlias("-p");
+        _projectOption.AddAlias("-p");
 
-        var modeOption = new Option<string>(
+        // No default value: an unset --mode must stay distinguishable from an explicit one so the
+        // "mode not supported" note below only fires when the user actually asked for a mode.
+        _modeOption = new Option<string?>(
             name: "--mode",
-            getDefaultValue: () => "hybrid",
-            description: "Search mode: keyword, semantic, or hybrid");
-        modeOption.AddAlias("-m");
+            description: "Search mode: keyword, semantic, or hybrid (knowledge search is always lexical)");
+        _modeOption.AddAlias("-m");
 
-        var limitOption = new Option<int>(
+        _limitOption = new Option<int>(
             name: "--limit",
             getDefaultValue: () => 10,
             description: "Maximum number of results to return");
-        limitOption.AddAlias("-n");
+        _limitOption.AddAlias("-n");
 
-        var jsonOption = new Option<bool>(
+        _jsonOption = new Option<bool>(
             name: "--json",
             description: "Output results as JSON");
 
-        this.AddArgument(queryArgument);
-        this.AddOption(tagsOption);
-        this.AddOption(projectOption);
-        this.AddOption(modeOption);
-        this.AddOption(limitOption);
-        this.AddOption(jsonOption);
+        this.AddArgument(_queryArgument);
+        this.AddOption(_tagsOption);
+        this.AddOption(_projectOption);
+        this.AddOption(_modeOption);
+        this.AddOption(_limitOption);
+        this.AddOption(_jsonOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
@@ -71,12 +79,12 @@ public class RecallCommand : Command
                 configService,
                 CancellationToken.None);
         },
-        command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing query argument"),
-        command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing tags option"),
-        command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
-        command.Options[2] as Option<string> ?? throw new InvalidOperationException("Missing mode option"),
-        command.Options[3] as Option<int> ?? throw new InvalidOperationException("Missing limit option"),
-        command.Options[4] as Option<bool> ?? throw new InvalidOperationException("Missing json option"));
+        command._queryArgument,
+        command._tagsOption,
+        command._projectOption,
+        command._modeOption,
+        command._limitOption,
+        command._jsonOption);
 
         return command;
     }
@@ -112,10 +120,19 @@ public class RecallCommand : Command
             // Clamp limit
             limit = Math.Clamp(limit, 1, 100);
 
+            // The knowledge bank has no vector index, so every mode is served by FTS5 lexical
+            // search. Only say so when a mode was explicitly requested - otherwise every default
+            // invocation prints a note about a mode the user never asked for.
+            if (mode != null && searchMode != SearchMode.Lexical)
+            {
+                Console.Error.WriteLine(
+                    $"Note: knowledge search does not support '{searchMode}' mode; using lexical (FTS5) search.");
+            }
+
             if (!json)
             {
                 Console.WriteLine($"Searching knowledge bank for: \"{query}\"");
-                Console.WriteLine($"Mode: {searchMode}");
+                Console.WriteLine($"Mode: Lexical (FTS5)");
                 Console.WriteLine();
             }
 
@@ -134,6 +151,7 @@ public class RecallCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error recalling knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);

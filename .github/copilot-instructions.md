@@ -37,6 +37,10 @@ agent-journal search "api design" --project my-project
 
 # JSON output for scripting
 agent-journal search "database" --robot
+
+# Widen the search beyond sessions
+agent-journal search "retry policy" --include-knowledge   # + knowledge bank (all projects)
+agent-journal search "retry policy" --include-tasks       # + task journals (this repo only)
 ```
 
 ### Index Sessions
@@ -77,7 +81,52 @@ agent-journal export <session-id> --output ./exports/session.html
 
 # Output to stdout
 agent-journal export <session-id> --stdout
+
+# Export only the last N messages (useful for long sessions)
+agent-journal export <session-id> --last 20
 ```
+
+### Task Journal
+
+Track progress through a multi-task plan in a SQLite journal, so an agent can resume after its
+conversation context is compacted or lost:
+
+```bash
+# Bind a journal to a plan file (task count from '## Task N' headings)
+agent-journal task init docs/plans/refactor.md --name refactor
+
+# After context loss: which task is next?
+agent-journal task next --robot
+
+# Record progress as it happens
+agent-journal task start 1
+agent-journal task complete 1 --note "extracted the parser"
+
+# Review found a problem in an already-completed task
+agent-journal task fix 1 --note "leak in the disposal path"
+
+# Briefs and reports are stored in the journal, not pasted through context
+agent-journal task show brief 1
+agent-journal task show report 1 --out report.md
+
+agent-journal task status
+agent-journal task list
+
+# Search the notes, briefs, and reports left behind
+agent-journal search "disposal path" --include-tasks
+```
+
+Record each task with `task complete` as it finishes rather than holding progress in conversation.
+Every subcommand supports `--robot` for JSON. Exit codes: 0 success, 1 failure, 2 not found.
+
+The journal lives in a SQLite database keyed by repository, so several agents working the same
+plan share one view of progress without clobbering each other.
+
+Task notes, briefs, and reports are indexed for search inside that same database. Unlike session and
+knowledge search, which span every project, `--include-tasks` is scoped to the current repository —
+it requires being inside one, and matches lexically regardless of `--mode`.
+
+See [docs/TASK_JOURNAL.md](../docs/TASK_JOURNAL.md) for the full loop.
 
 ### Configuration
 

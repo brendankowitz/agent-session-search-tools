@@ -72,18 +72,21 @@ public class ConfigCommand : Command
 
     private class SetSubCommand : Command
     {
+        private readonly Argument<string> _keyArgument;
+        private readonly Argument<string> _valueArgument;
+
         private SetSubCommand() : base("set", "Set a configuration value")
         {
-            var keyArgument = new Argument<string>(
+            _keyArgument = new Argument<string>(
                 name: "key",
                 description: "Configuration key");
 
-            var valueArgument = new Argument<string>(
+            _valueArgument = new Argument<string>(
                 name: "value",
                 description: "Configuration value");
 
-            this.AddArgument(keyArgument);
-            this.AddArgument(valueArgument);
+            this.AddArgument(_keyArgument);
+            this.AddArgument(_valueArgument);
         }
 
         public static Command Create(IServiceProvider serviceProvider)
@@ -94,8 +97,8 @@ public class ConfigCommand : Command
                 var configService = serviceProvider.GetRequiredService<ConfigurationService>();
                 await ExecuteAsync(key, value, configService, CancellationToken.None);
             },
-            command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing key argument"),
-            command.Arguments[1] as Argument<string> ?? throw new InvalidOperationException("Missing value argument"));
+            command._keyArgument,
+            command._valueArgument);
             return command;
         }
 
@@ -126,6 +129,7 @@ public class ConfigCommand : Command
                 Console.Error.WriteLine("  DefaultContextMessages - Number (e.g., 3)");
                 Console.Error.WriteLine("  DefaultMaxResults - Number (e.g., 10)");
                 Console.Error.WriteLine("  VerboseLogging - true or false");
+                CommandOutcome.Fail();
             }
         }
     }

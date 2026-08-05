@@ -12,6 +12,34 @@ public class CopilotCliConnector : IAgentConnector
 {
     public string AgentType => "copilot-cli";
 
+    private readonly string[] _sessionDirectories;
+
+    /// <summary>
+    /// Creates a connector rooted at the supplied Copilot sessions directory.
+    /// </summary>
+    /// <param name="sessionsPath">
+    /// Directory to scan for session folders. When null or blank the default
+    /// <c>~/.copilot/session-state</c> and <c>~/.copilot-cli/sessions</c> locations are probed.
+    /// This is what the configured <c>CopilotSessionsPath</c> setting flows into - previously the
+    /// defaults were hardcoded here, so the setting had no effect at all.
+    /// </param>
+    public CopilotCliConnector(string? sessionsPath = null)
+    {
+        if (!string.IsNullOrWhiteSpace(sessionsPath))
+        {
+            _sessionDirectories = [sessionsPath];
+        }
+        else
+        {
+            var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            _sessionDirectories =
+            [
+                Path.Combine(homeDirectory, ".copilot", "session-state"),
+                Path.Combine(homeDirectory, ".copilot-cli", "sessions")
+            ];
+        }
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -20,16 +48,7 @@ public class CopilotCliConnector : IAgentConnector
 
     public IEnumerable<string> GetSessionPaths()
     {
-        var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-        // Check potentially multiple locations for sessions
-        var possibleDirectories = new[]
-        {
-            Path.Combine(homeDirectory, ".copilot", "session-state"),
-            Path.Combine(homeDirectory, ".copilot-cli", "sessions")
-        };
-
-        foreach (var sessionsDirectory in possibleDirectories)
+        foreach (var sessionsDirectory in _sessionDirectories)
         {
             if (!Directory.Exists(sessionsDirectory))
             {
@@ -94,9 +113,11 @@ public class CopilotCliConnector : IAgentConnector
 
             return BuildSessionFromEvents(events, sessionPath, lastModified);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // If parsing fails, return null rather than throwing
+            // A session that cannot be parsed is not the same as "no session here". Report it on
+            // stderr so a failed index run is diagnosable, then skip the file.
+            Console.Error.WriteLine($"Error parsing session {sessionPath}: {ex.Message}");
             return null;
         }
     }
@@ -123,6 +144,7 @@ public class CopilotCliConnector : IAgentConnector
         {
             if (sessionStartEvent.Data is not JsonElement jsonElement)
             {
+                ReportDropped("session", sessionPath, "session.start event carried no JSON payload");
                 return null;
             }
 
@@ -131,6 +153,7 @@ public class CopilotCliConnector : IAgentConnector
 
             if (startData == null || string.IsNullOrEmpty(startData.SessionId))
             {
+                ReportDropped("session", sessionPath, "session.start event has no session id");
                 return null;
             }
 
@@ -138,8 +161,9 @@ public class CopilotCliConnector : IAgentConnector
             copilotVersion = startData.CopilotVersion;
             startTime = startData.StartTime ?? sessionStartEvent.Timestamp;
         }
-        catch
+        catch (JsonException ex)
         {
+            ReportDropped("session", sessionPath, $"malformed session.start payload: {ex.Message}");
             return null;
         }
 
@@ -220,6 +244,7 @@ public class CopilotCliConnector : IAgentConnector
         {
             if (evt.Data is not JsonElement jsonElement)
             {
+                ReportDropped("user message", evt.Id, "event carried no JSON payload");
                 return null;
             }
 
@@ -228,6 +253,7 @@ public class CopilotCliConnector : IAgentConnector
 
             if (data == null)
             {
+                ReportDropped("user message", evt.Id, "payload deserialized to null");
                 return null;
             }
 
@@ -245,8 +271,9 @@ public class CopilotCliConnector : IAgentConnector
                 ToolCalls: null
             );
         }
-        catch
+        catch (JsonException ex)
         {
+            ReportDropped("user message", evt.Id, $"malformed payload: {ex.Message}");
             return null;
         }
     }
@@ -257,6 +284,7 @@ public class CopilotCliConnector : IAgentConnector
         {
             if (evt.Data is not JsonElement jsonElement)
             {
+                ReportDropped("assistant message", evt.Id, "event carried no JSON payload");
                 return (null, new List<ToolCall>());
             }
 
@@ -265,6 +293,7 @@ public class CopilotCliConnector : IAgentConnector
 
             if (data == null)
             {
+                ReportDropped("assistant message", evt.Id, "payload deserialized to null");
                 return (null, new List<ToolCall>());
             }
 
@@ -309,8 +338,9 @@ public class CopilotCliConnector : IAgentConnector
 
             return (message, toolCalls);
         }
-        catch
+        catch (JsonException ex)
         {
+            ReportDropped("assistant message", evt.Id, $"malformed payload: {ex.Message}");
             return (null, new List<ToolCall>());
         }
     }
@@ -343,10 +373,20 @@ public class CopilotCliConnector : IAgentConnector
                 };
             }
         }
-        catch
+        catch (JsonException ex)
         {
-            // Ignore parsing errors for tool results
+            ReportDropped("tool result", evt.Id, $"malformed payload: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Reports content the connector could not parse. Indexing continues without it, so this is
+    /// the only signal that a session is stored with gaps.
+    /// </summary>
+    private static void ReportDropped(string what, string? id, string reason)
+    {
+        Console.Error.WriteLine(
+            $"agent-journal: skipped {what} {id ?? "<no id>"} - {reason}");
     }
 
     private IReadOnlyList<Message> RebuildMessagesWithToolCalls(

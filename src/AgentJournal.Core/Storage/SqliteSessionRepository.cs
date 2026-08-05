@@ -13,14 +13,7 @@ public class SqliteSessionRepository : ISessionRepository
 
     public SqliteSessionRepository(string databasePath)
     {
-        var builder = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
-            Pooling = true
-        };
-        _connectionString = builder.ToString();
+        _connectionString = SqliteConnectionFactory.BuildConnectionString(databasePath);
     }
 
     /// <summary>
@@ -28,8 +21,7 @@ public class SqliteSessionRepository : ISessionRepository
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -92,19 +84,28 @@ public class SqliteSessionRepository : ISessionRepository
             // Column likely already exists, ignore
         }
 
-        // Enable WAL mode for concurrent read/write access
+        // Enable WAL mode for concurrent read/write access. busy_timeout matches the value the
+        // connection factory applies, so a retry window is never silently shortened here.
         var walCmd = connection.CreateCommand();
-        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
+        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000;";
         await walCmd.ExecuteNonQueryAsync(ct);
-    }
+
+        // Sweep tool_calls left behind by builds that ran without foreign key enforcement. Such
+        // rows are invisible to every query (all reads join through messages) but collide on
+        // primary key when their session is re-indexed, which aborts the save.
+        var sweepCmd = connection.CreateCommand();
+        sweepCmd.CommandText = @"
+            DELETE FROM tool_calls
+            WHERE message_id NOT IN (SELECT id FROM messages);
+        ";
+        await sweepCmd.ExecuteNonQueryAsync(ct);    }
 
     /// <summary>
     /// Saves a session to the database
     /// </summary>
     public async Task SaveSessionAsync(Session session, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
 
@@ -141,7 +142,8 @@ public class SqliteSessionRepository : ISessionRepository
                 await command.ExecuteNonQueryAsync(ct);
             }
 
-            // Delete existing messages and tool calls for this session to avoid duplicates
+            // Delete existing messages for this session to avoid duplicates. Their tool_calls go
+            // with them via ON DELETE CASCADE.
             await using (var command = connection.CreateCommand())
             {
                 command.Transaction = transaction;
@@ -174,6 +176,18 @@ public class SqliteSessionRepository : ISessionRepository
                 // Insert tool calls for this message
                 if (message.ToolCalls != null)
                 {
+                    // Clear any tool_calls still keyed to this message id. The cascade above only
+                    // reaches rows whose parent message row existed; rows orphaned by builds that
+                    // predate foreign key enforcement survive it and would collide on primary key
+                    // here, aborting the whole session save.
+                    await using (var orphanCommand = connection.CreateCommand())
+                    {
+                        orphanCommand.Transaction = transaction;
+                        orphanCommand.CommandText = "DELETE FROM tool_calls WHERE message_id = @message_id;";
+                        orphanCommand.Parameters.AddWithValue("@message_id", message.Id);
+                        await orphanCommand.ExecuteNonQueryAsync(ct);
+                    }
+
                     foreach (var toolCall in message.ToolCalls)
                     {
                         await using var tcCommand = connection.CreateCommand();
@@ -220,8 +234,7 @@ public class SqliteSessionRepository : ISessionRepository
     /// </summary>
     public async Task<Session?> GetSessionAsync(string sessionId, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         // Get session
         await using var sessionCommand = connection.CreateCommand();
@@ -308,8 +321,7 @@ public class SqliteSessionRepository : ISessionRepository
     /// </summary>
     public async Task<DateTime?> GetSessionLastModifiedAsync(string sessionId, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -335,8 +347,7 @@ public class SqliteSessionRepository : ISessionRepository
     /// </summary>
     public async IAsyncEnumerable<Session> GetAllSessionsAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -362,8 +373,7 @@ public class SqliteSessionRepository : ISessionRepository
     /// </summary>
     public async IAsyncEnumerable<Session> GetSessionsByAgentTypeAsync(string agentType, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -391,16 +401,31 @@ public class SqliteSessionRepository : ISessionRepository
     /// </summary>
     public async Task DeleteSessionAsync(string sessionId, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
 
-        await using var command = connection.CreateCommand();
-        command.CommandText = @"
-            DELETE FROM sessions WHERE id = @id;
-        ";
-        command.Parameters.AddWithValue("@id", sessionId);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                DELETE FROM tool_calls
+                WHERE message_id IN (SELECT id FROM messages WHERE session_id = @id);
 
-        await command.ExecuteNonQueryAsync(ct);
+                DELETE FROM messages WHERE session_id = @id;
+
+                DELETE FROM sessions WHERE id = @id;
+            ";
+            command.Parameters.AddWithValue("@id", sessionId);
+
+            await command.ExecuteNonQueryAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
     }
 
     /// <summary>

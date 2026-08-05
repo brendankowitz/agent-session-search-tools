@@ -273,6 +273,7 @@ public class KnowledgeCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error listing knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -324,6 +325,7 @@ public class KnowledgeCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error getting statistics: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -373,6 +375,7 @@ public class KnowledgeCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error exporting knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -393,6 +396,7 @@ public class KnowledgeCommand : Command
             if (!File.Exists(file))
             {
                 Console.Error.WriteLine($"Error: File not found: {file}");
+                CommandOutcome.Fail(CommandOutcome.NotFound);
                 return;
             }
 
@@ -419,6 +423,7 @@ public class KnowledgeCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error importing knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -447,6 +452,7 @@ public class KnowledgeCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error pruning knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -466,6 +472,7 @@ public class KnowledgeCommand : Command
         {
             Console.Error.WriteLine("Error: Clearing all knowledge requires --confirm flag");
             Console.Error.WriteLine("Use --confirm to proceed with clearing");
+            CommandOutcome.Fail();
             return;
         }
 
@@ -483,6 +490,7 @@ public class KnowledgeCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error clearing knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);

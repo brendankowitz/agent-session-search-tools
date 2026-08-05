@@ -46,7 +46,7 @@ Key differentiators:
 
 ### 🔌 MCP Server
 
-- **14 MCP Tools** — Full functionality exposed via Model Context Protocol
+- **21 MCP Tools** — Full functionality exposed via Model Context Protocol
 - **Claude Desktop** — Works seamlessly with Claude Desktop app
 - **Any MCP Client** — Standard protocol works with any compatible client
 
@@ -55,6 +55,15 @@ Key differentiators:
 - **HTML** — Beautifully formatted with syntax highlighting
 - **Markdown** — Clean, portable format
 - **JSON** — Full data export for processing
+- **`--last N`** — Export only the tail of a long session
+
+### 📓 Task Journal
+
+- **Survives context loss** — Plan progress lives in SQLite, not in the conversation
+- **Repo-local** — Journals are scoped to the checkout, so branches don't blend plans
+- **Briefs and reports** — Hand work to a subagent by reference instead of pasting it
+- **Fix rounds** — Reopen a completed task when review finds a problem
+- **Searchable** — Notes, briefs, and reports are indexed for `search --include-tasks`
 
 ---
 
@@ -119,13 +128,13 @@ agent-journal search "api design" --project my-project
 
 ```bash
 # Remember something important
-agent-journal knowledge remember "Always use parameterized queries for SQL" --project security
+agent-journal remember "Always use parameterized queries for SQL" --project security
 
 # Recall knowledge
-agent-journal knowledge recall "sql injection"
+agent-journal recall "sql injection"
 
 # Reinforce important knowledge (reset decay)
-agent-journal knowledge reinforce <id>
+agent-journal reinforce <id>
 ```
 
 ### 4. Index Documentation
@@ -141,6 +150,22 @@ agent-journal content add --source "design-notes" --title "API Design" --content
 agent-journal content search "authentication flow"
 ```
 
+### 5. Track a Plan Across Context Loss
+
+```bash
+# Bind a journal to a plan file
+agent-journal task init docs/plans/refactor.md
+
+# After the context window is compacted: where was I?
+agent-journal task next --robot
+
+# Record progress as it happens
+agent-journal task complete 1 --note "extracted the parser"
+
+# Search the notes, briefs, and reports left behind
+agent-journal search "extracted the parser" --include-tasks
+```
+
 ---
 
 ## 💻 CLI Reference
@@ -152,10 +177,16 @@ agent-journal content search "authentication flow"
 | `search <query>` | Search sessions with lexical, semantic, or hybrid mode |
 | `index` | Index sessions from configured agent paths |
 | `export <id>` | Export a session to HTML, Markdown, or JSON |
-| `knowledge` | Manage knowledge entries (remember, recall, reinforce, forget) |
+| `remember` / `recall` / `reinforce` / `forget` | Manage knowledge entries |
+| `knowledge` | Inspect the knowledge bank (list, stats) |
 | `content` | Manage indexed content (index, add, search, list, remove) |
+| `task` | Track progress through a multi-task plan so it survives context loss |
 | `config` | View and modify configuration |
+| `models` | Manage embedding models |
 | `mcp` | Start the MCP server |
+
+All commands exit 0 on success, 1 on failure, 2 when the requested item was not found, and 3 when
+a run completed but some items failed. Errors go to stderr so `--robot` output stays valid JSON.
 
 ### Search Options
 
@@ -234,6 +265,13 @@ Add to your Claude Desktop config (`~/.config/claude/claude_desktop_config.json`
 | `RemoveContent` | Remove content by criteria |
 | `ReinforceContent` | Reset decay on content |
 | `Search` | Unified search across sessions + knowledge |
+| `TaskInit` | Create a task journal for a plan file |
+| `TaskStatus` | Get journal state, including which task to resume |
+| `TaskRecord` | Record a task state change (started, complete, fix) |
+| `TaskWriteArtifact` | Store a task brief or report in the journal |
+| `TaskReadArtifact` | Read a task brief or report back out |
+| `TaskSearch` | Full-text search across task notes, briefs, and reports |
+| `TaskList` | List the task journals in this repository |
 
 ---
 
@@ -286,7 +324,7 @@ agent-journal config set Decay.HalfLifeDays 60
 ┌─────────────────────────────────────────────────────────────┐
 │                        CLI / MCP Server                      │
 ├─────────────────────────────────────────────────────────────┤
-│  Commands: search, index, export, knowledge, content, mcp   │
+│  Commands: search index export knowledge content task mcp   │
 ├─────────────────────────────────────────────────────────────┤
 │                      AgentJournal.Core                       │
 ├──────────────┬──────────────┬──────────────┬────────────────┤
@@ -295,6 +333,7 @@ agent-journal config set Decay.HalfLifeDays 60
 │ • Claude     │ • Lucene     │ • Sessions   │ • HTML         │
 │ • Copilot    │ • Vector     │ • Knowledge  │ • Markdown     │
 │              │ • Hybrid     │ • Content    │ • JSON         │
+│              │              │ • Tasks      │                │
 ├──────────────┴──────────────┴──────────────┴────────────────┤
 │                    SQLite + Lucene Index                     │
 └─────────────────────────────────────────────────────────────┘
@@ -312,6 +351,7 @@ src/
 │   ├── Search/                # Lucene + Vector engines
 │   ├── Storage/               # SQLite repositories
 │   ├── Knowledge/             # Knowledge + Content repos
+│   ├── Tasks/                 # Task journal (SQLite)
 │   ├── Decay/                 # Temporal decay calculator
 │   ├── Mcp/                   # MCP server & tools
 │   └── Export/                # HTML, Markdown, JSON

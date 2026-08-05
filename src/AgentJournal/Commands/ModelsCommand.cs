@@ -267,7 +267,8 @@ public class RemoveModelCommand : Command
 
         if (!Directory.Exists(modelDir))
         {
-            Console.WriteLine($"Model '{name}' not found.");
+            Console.Error.WriteLine($"Model '{name}' not found.");
+            CommandOutcome.Fail(CommandOutcome.NotFound);
             return;
         }
 
@@ -294,6 +295,7 @@ public class RemoveModelCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error removing model: {ex.Message}");
+            CommandOutcome.Fail();
         }
     }
 }

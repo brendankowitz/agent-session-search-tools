@@ -1,4 +1,5 @@
 using AgentJournal.Core.Models;
+using AgentJournal.Core.Storage;
 using Lucene.Net.Analysis;
 using Lucene.Net.Analysis.Standard;
 using Lucene.Net.Documents;
@@ -26,10 +27,26 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
     private const string FIELD_PROJECT_PATH = "project_path";
     private const string FIELD_ROLE = "role";
     private const string FIELD_CONTENT = "content";
-    private const string FIELD_ALL_CONTENT = "all_content"; // Combined content from all session messages
+    private const string FIELD_ALL_CONTENT = "all_content"; // Combined content, on the session document only
+    private const string FIELD_DOC_TYPE = "doc_type";
+    private const string DOC_TYPE_SESSION = "session";
+    private const string DOC_TYPE_MESSAGE = "message";
     private const string FIELD_TIMESTAMP = "timestamp";
 
+    /// <summary>
+    /// Caps how many matching messages are collected per session so a single long session cannot
+    /// dominate a result payload. Context expansion is applied on top of this.
+    /// </summary>
+    private const int MAX_MATCHING_MESSAGES_PER_SESSION = 20;
+
+    /// <summary>
+    /// Upper bound on documents scanned for session grouping. A term present in most of the corpus
+    /// would otherwise allocate one <c>ScoreDoc</c> per message in the whole index.
+    /// </summary>
+    private const int MAX_HITS_SCANNED = 10_000;
+
     private readonly string _indexPath;
+    private readonly ISessionRepository? _sessionRepository;
     private readonly ReaderWriterLockSlim _indexLock = new(LockRecursionPolicy.NoRecursion);
     private readonly ConcurrentDictionary<string, Session> _sessionCache = new();
 
@@ -42,8 +59,15 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
 
     public IReadOnlyList<SearchMode> SupportedModes { get; } = new[] { SearchMode.Lexical };
 
-    public LuceneSearchEngine(string? indexPath = null)
+    /// <param name="indexPath">Directory holding the Lucene index.</param>
+    /// <param name="sessionRepository">
+    /// Used to hydrate sessions that were indexed by an earlier process. Without it the in-memory
+    /// cache is cold on every fresh invocation, so no result can carry matching messages or the
+    /// message list that <c>--context</c> expands over.
+    /// </param>
+    public LuceneSearchEngine(string? indexPath = null, ISessionRepository? sessionRepository = null)
     {
+        _sessionRepository = sessionRepository;
         _indexPath = indexPath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".agent-journal",
@@ -107,15 +131,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             // Cache the session for retrieval during search
             _sessionCache[session.Id] = session;
 
-            // Create combined content from all messages for session-level searching
-            var allContent = string.Join(" ", session.Messages.Select(m => m.Content ?? ""));
-
-            // Index each message in the session
-            foreach (var message in session.Messages)
-            {
-                var doc = CreateDocument(session, message, allContent);
-                _writer!.AddDocument(doc);
-            }
+            AddSessionDocuments(session);
 
             // Commit changes and refresh searcher (blocking to ensure visibility)
             _writer!.Commit();
@@ -150,15 +166,7 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
                 // Cache the session
                 _sessionCache[session.Id] = session;
 
-                // Create combined content from all messages for session-level searching
-                var allContent = string.Join(" ", session.Messages.Select(m => m.Content ?? ""));
-
-                // Index each message
-                foreach (var message in session.Messages)
-                {
-                    var doc = CreateDocument(session, message, allContent);
-                    _writer!.AddDocument(doc);
-                }
+                AddSessionDocuments(session);
             }
 
             // Commit changes and refresh searcher (blocking to ensure visibility)
@@ -205,47 +213,125 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
                 return Array.Empty<SearchResult>();
             }
 
-            // Parse the query - search in the combined all_content field for session-level matching
+            // Session-level matching runs against all_content, which now lives only on the single
+            // session document. One hit per matching session, so ranking and budgeting are per
+            // session rather than per message.
             var parser = new QueryParser(LUCENE_VERSION, FIELD_ALL_CONTENT, _analyzer!);
             parser.DefaultOperator = Operator.AND;
 
+            // Matching messages come from a separate query over the per-message content field.
+            // all_content spans the whole session, so a session-level match says nothing about
+            // which individual messages mention the query terms.
+            var messageParser = new QueryParser(LUCENE_VERSION, FIELD_CONTENT, _analyzer!);
+            messageParser.DefaultOperator = Operator.AND;
+
             Query luceneQuery;
+            Query messageQuery;
             try
             {
                 luceneQuery = parser.Parse(query);
+                messageQuery = messageParser.Parse(query);
             }
             catch (ParseException)
             {
                 // If parsing fails, try as phrase query
-                luceneQuery = parser.Parse($"\"{QueryParserBase.Escape(query)}\"");
+                var escaped = $"\"{QueryParserBase.Escape(query)}\"";
+                luceneQuery = parser.Parse(escaped);
+                messageQuery = messageParser.Parse(escaped);
             }
 
-            // Execute search
-            var topDocs = searcher.Search(luceneQuery, maxResults * 10); // Get more to allow for dedup
-            var results = new List<SearchResult>();
-            var seenSessions = new HashSet<string>();
+            // Select sessions. Session documents are one per session, so maxResults hits is exactly
+            // the number of sessions wanted - no oversampling, and no chatty session can crowd out
+            // the rest the way per-message hits did.
+            var sessionDocs = searcher.Search(luceneQuery, Math.Max(maxResults, 1));
 
-            foreach (var scoreDoc in topDocs.ScoreDocs)
+            var hitsBySession = new Dictionary<string, SessionHits>(StringComparer.Ordinal);
+            var sessionOrder = new List<string>();
+
+            foreach (var scoreDoc in sessionDocs.ScoreDocs)
             {
                 var doc = searcher.Doc(scoreDoc.Doc);
                 var sessionId = doc.Get(FIELD_SESSION_ID);
-
-                // Skip if we've already seen this session (deduplicate by session)
-                if (!seenSessions.Add(sessionId))
+                if (string.IsNullOrEmpty(sessionId) || hitsBySession.ContainsKey(sessionId))
                 {
                     continue;
                 }
 
-                // Get the session from cache, or create minimal session from doc
+                hitsBySession[sessionId] = new SessionHits(doc, scoreDoc.Score);
+                sessionOrder.Add(sessionId);
+            }
+
+            if (sessionOrder.Count > 0)
+            {
+                // Collect matching messages for the selected sessions. Message hits are ranked
+                // independently of the session ranking, so a single verbose session can consume the
+                // head of this list; size the fetch against the real total and bound it so a very
+                // common term cannot allocate wildly.
+                var totalHitCollector = new TotalHitCountCollector();
+                searcher.Search(messageQuery, totalHitCollector);
+
+                var desiredHits = sessionOrder.Count * MAX_MATCHING_MESSAGES_PER_SESSION;
+                var hitBudget = Math.Clamp(totalHitCollector.TotalHits, desiredHits, MAX_HITS_SCANNED);
+
+                var messageDocs = searcher.Search(messageQuery, Math.Max(hitBudget, 1));
+
+                foreach (var scoreDoc in messageDocs.ScoreDocs)
+                {
+                    var doc = searcher.Doc(scoreDoc.Doc);
+                    var sessionId = doc.Get(FIELD_SESSION_ID);
+                    if (string.IsNullOrEmpty(sessionId) ||
+                        !hitsBySession.TryGetValue(sessionId, out var hits))
+                    {
+                        continue;
+                    }
+
+                    if (hits.MessageIds.Count >= MAX_MATCHING_MESSAGES_PER_SESSION)
+                    {
+                        continue;
+                    }
+
+                    var messageId = doc.Get(FIELD_ID);
+                    if (string.IsNullOrEmpty(messageId))
+                    {
+                        continue;
+                    }
+
+                    hits.MessageIds.Add(messageId);
+
+                    // Highlight from a message that actually matched, rather than from the session
+                    // document, which stores no message text at all.
+                    hits.OfferMessageMatchDoc(doc);
+                }
+            }
+
+            var results = new List<SearchResult>(sessionOrder.Count);
+
+            foreach (var sessionId in sessionOrder)
+            {
+                var hits = hitsBySession[sessionId];
+                var doc = hits.TopDoc;
+
                 Session session;
                 IReadOnlyList<Message>? matchingMessages = null;
 
-                if (_sessionCache.TryGetValue(sessionId, out var cachedSession))
+                // The cache only holds sessions this process indexed. Every ordinary invocation
+                // searches an index built earlier, so fall back to the repository - otherwise no
+                // result can ever carry matching messages or the messages --context expands over.
+                if (!_sessionCache.TryGetValue(sessionId, out var resolvedSession) &&
+                    _sessionRepository != null)
                 {
-                    session = cachedSession;
-                    var messageId = doc.Get(FIELD_ID);
+                    resolvedSession = await _sessionRepository
+                        .GetSessionAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                }
+
+                if (resolvedSession != null)
+                {
+                    session = resolvedSession;
+
+                    var matchedIds = hits.MessageIds.ToHashSet(StringComparer.Ordinal);
                     var matchedMessages = session.Messages
-                        .Where(m => m.Id == messageId)
+                        .Where(m => matchedIds.Contains(m.Id))
                         .ToList();
 
                     // Expand with context if requested
@@ -279,16 +365,11 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
 
                 results.Add(new SearchResult(
                     Session: session,
-                    Score: scoreDoc.Score,
+                    Score: hits.TopScore,
                     MatchingMessages: matchingMessages,
-                    Highlight: highlight
+                    Highlight: highlight,
+                    MatchedMessageIds: hits.MessageIds
                 ));
-
-                // Stop if we have enough results
-                if (results.Count >= maxResults)
-                {
-                    break;
-                }
             }
 
             return results;
@@ -402,11 +483,56 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         }
     }
 
-    private Document CreateDocument(Session session, Message message, string allContent)
+    /// <summary>
+    /// Writes one session-level document plus one document per message.
+    /// </summary>
+    /// <remarks>
+    /// The combined <c>all_content</c> text lives on a single session document. It used to be
+    /// copied onto every message document, which made the index grow with
+    /// messages x session length - a few hundred ordinary messages produced hundreds of megabytes
+    /// of postings, so indexing a real corpus never finished.
+    /// </remarks>
+    private void AddSessionDocuments(Session session)
+    {
+        var allContent = string.Join(" ", session.Messages.Select(m => m.Content ?? ""));
+        _writer!.AddDocument(CreateSessionDocument(session, allContent));
+
+        foreach (var message in session.Messages)
+        {
+            _writer!.AddDocument(CreateDocument(session, message));
+        }
+    }
+
+    private static Document CreateSessionDocument(Session session, string allContent)
+    {
+        var doc = new Document();
+
+        doc.Add(new StringField(FIELD_DOC_TYPE, DOC_TYPE_SESSION, Field.Store.YES));
+        doc.Add(new StringField(FIELD_SESSION_ID, session.Id, Field.Store.YES));
+        doc.Add(new StringField(FIELD_AGENT_TYPE, session.AgentType, Field.Store.YES));
+
+        if (!string.IsNullOrEmpty(session.ProjectPath))
+        {
+            doc.Add(new StringField(FIELD_PROJECT_PATH, session.ProjectPath, Field.Store.YES));
+        }
+
+        // Session start time, so a result built purely from the index still carries a timestamp.
+        doc.Add(new Int64Field(FIELD_TIMESTAMP, session.StartedAt.Ticks, Field.Store.YES));
+
+        if (!string.IsNullOrEmpty(allContent))
+        {
+            doc.Add(new TextField(FIELD_ALL_CONTENT, allContent, Field.Store.NO));
+        }
+
+        return doc;
+    }
+
+    private static Document CreateDocument(Session session, Message message)
     {
         var doc = new Document();
 
         // Store fields (not analyzed)
+        doc.Add(new StringField(FIELD_DOC_TYPE, DOC_TYPE_MESSAGE, Field.Store.YES));
         doc.Add(new StringField(FIELD_ID, message.Id, Field.Store.YES));
         doc.Add(new StringField(FIELD_SESSION_ID, session.Id, Field.Store.YES));
         doc.Add(new StringField(FIELD_AGENT_TYPE, session.AgentType, Field.Store.YES));
@@ -426,12 +552,6 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
         if (!string.IsNullOrEmpty(message.Content))
         {
             doc.Add(new TextField(FIELD_CONTENT, message.Content, Field.Store.YES));
-        }
-
-        // All content field (analyzed but not stored) - for session-level searching
-        if (!string.IsNullOrEmpty(allContent))
-        {
-            doc.Add(new TextField(FIELD_ALL_CONTENT, allContent, Field.Store.NO));
         }
 
         return doc;
@@ -551,11 +671,10 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
             _searcherManager?.Dispose();
             _searcherManager = null;
 
-            // Clear stale lock from previous crash
-            if (IndexWriter.IsLocked(_directory!))
-            {
-                try { IndexWriter.Unlock(_directory!); } catch { /* held by live process */ }
-            }
+            // Do NOT force-unlock here. IndexWriter.Unlock() cannot distinguish a stale lock left
+            // by a crash from a live lock held by another agent-journal process, and stealing a
+            // live lock puts two IndexWriters on one directory, which corrupts the index. Let the
+            // LockObtainFailedException below surface as an actionable error instead.
 
             var indexConfig = new IndexWriterConfig(LUCENE_VERSION, _analyzer!)
             {
@@ -600,6 +719,48 @@ public class LuceneSearchEngine : ISearchEngine, IDisposable
 
         _disposed = true;
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Accumulates the per-message Lucene hits belonging to one session while searching.
+    /// </summary>
+    private sealed class SessionHits
+    {
+        public SessionHits(Document topDoc, float topScore)
+        {
+            TopDoc = topDoc;
+            TopScore = topScore;
+        }
+
+        /// <summary>The highest-scoring document for the session, used for session metadata and highlighting.</summary>
+        public Document TopDoc { get; private set; }
+
+        /// <summary>The score of <see cref="TopDoc"/>, used as the session's overall relevance.</summary>
+        public float TopScore { get; }
+
+        /// <summary>
+        /// Whether <see cref="TopDoc"/> is a document whose own message content matched, rather than
+        /// one pulled in only by the session-level <c>all_content</c> field.
+        /// </summary>
+        public bool TopDocIsMessageMatch { get; private set; }
+
+        /// <summary>Message ids that matched, in descending score order.</summary>
+        public List<string> MessageIds { get; } = new();
+
+        /// <summary>
+        /// Promotes a matching message document to be the highlight source. The session document
+        /// stores no message text, so without this there would be nothing to highlight from.
+        /// </summary>
+        public void OfferMessageMatchDoc(Document doc)
+        {
+            if (TopDocIsMessageMatch)
+            {
+                return;
+            }
+
+            TopDoc = doc;
+            TopDocIsMessageMatch = true;
+        }
     }
 }
 

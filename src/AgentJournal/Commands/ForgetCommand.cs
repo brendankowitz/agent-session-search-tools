@@ -11,37 +11,43 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class ForgetCommand : Command
 {
+    private readonly Argument<string?> _idArgument;
+    private readonly Option<string?> _matchOption;
+    private readonly Option<string?> _projectOption;
+    private readonly Option<bool> _allOption;
+    private readonly Option<bool> _confirmOption;
+
     private ForgetCommand() : base("forget", "Delete knowledge from the knowledge bank")
     {
-        var idArgument = new Argument<string?>(
+        _idArgument = new Argument<string?>(
             name: "id",
             description: "ID of the knowledge entry to delete",
             getDefaultValue: () => null);
 
-        var matchOption = new Option<string?>(
+        _matchOption = new Option<string?>(
             name: "--match",
             description: "Delete entries matching this query");
-        matchOption.AddAlias("-m");
+        _matchOption.AddAlias("-m");
 
-        var projectOption = new Option<string?>(
+        _projectOption = new Option<string?>(
             name: "--project",
             description: "Delete entries from this project");
-        projectOption.AddAlias("-p");
+        _projectOption.AddAlias("-p");
 
-        var allOption = new Option<bool>(
+        _allOption = new Option<bool>(
             name: "--all",
             description: "Delete all entries (requires --confirm)");
 
-        var confirmOption = new Option<bool>(
+        _confirmOption = new Option<bool>(
             name: "--confirm",
             description: "Confirm deletion (required for batch operations)");
-        confirmOption.AddAlias("-y");
+        _confirmOption.AddAlias("-y");
 
-        this.AddArgument(idArgument);
-        this.AddOption(matchOption);
-        this.AddOption(projectOption);
-        this.AddOption(allOption);
-        this.AddOption(confirmOption);
+        this.AddArgument(_idArgument);
+        this.AddOption(_matchOption);
+        this.AddOption(_projectOption);
+        this.AddOption(_allOption);
+        this.AddOption(_confirmOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
@@ -63,11 +69,11 @@ public class ForgetCommand : Command
                 configService,
                 CancellationToken.None);
         },
-        command.Arguments[0] as Argument<string?> ?? throw new InvalidOperationException("Missing id argument"),
-        command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing match option"),
-        command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
-        command.Options[2] as Option<bool> ?? throw new InvalidOperationException("Missing all option"),
-        command.Options[3] as Option<bool> ?? throw new InvalidOperationException("Missing confirm option"));
+        command._idArgument,
+        command._matchOption,
+        command._projectOption,
+        command._allOption,
+        command._confirmOption);
 
         return command;
     }
@@ -98,6 +104,7 @@ public class ForgetCommand : Command
             {
                 Console.Error.WriteLine("Error: Batch deletion requires --confirm flag");
                 Console.Error.WriteLine("Use --confirm to proceed with deletion");
+                CommandOutcome.Fail();
                 return;
             }
 
@@ -127,10 +134,12 @@ public class ForgetCommand : Command
             Console.Error.WriteLine("  agent-journal forget abc123");
             Console.Error.WriteLine("  agent-journal forget --match \"old convention\" --confirm");
             Console.Error.WriteLine("  agent-journal forget --project my-app --confirm");
+            CommandOutcome.Fail();
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error deleting knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -144,6 +153,7 @@ public class ForgetCommand : Command
         if (entry == null)
         {
             Console.Error.WriteLine($"Error: Knowledge entry '{id}' not found");
+            CommandOutcome.Fail(CommandOutcome.NotFound);
             return;
         }
 
@@ -157,6 +167,7 @@ public class ForgetCommand : Command
         else
         {
             Console.Error.WriteLine($"Error: Failed to delete entry '{id}'");
+            CommandOutcome.Fail();
         }
     }
 

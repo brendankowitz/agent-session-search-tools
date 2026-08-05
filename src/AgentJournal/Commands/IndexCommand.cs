@@ -6,6 +6,7 @@ using AgentJournal.Core.Connectors;
 using AgentJournal.Core.Storage;
 using AgentJournal.Core.Search;
 using AgentJournal.Core.Embeddings;
+using AgentJournal.Core.Tasks;
 
 namespace AgentJournal.Commands;
 
@@ -14,27 +15,31 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class IndexCommand : Command
 {
+    private readonly Option<string?> _agentOption;
+    private readonly Option<bool> _watchOption;
+    private readonly Option<bool> _rebuildOption;
+
     private IndexCommand() : base("index", "Index agent sessions for searching")
     {
-        var agentOption = new Option<string?>(
+        _agentOption = new Option<string?>(
             name: "--agent",
             getDefaultValue: () => "all",
             description: "Agent type to index (claude-code, copilot-cli, or all)");
-        agentOption.AddAlias("-a");
+        _agentOption.AddAlias("-a");
 
-        var watchOption = new Option<bool>(
+        _watchOption = new Option<bool>(
             name: "--watch",
             description: "Watch for new sessions and index them automatically");
-        watchOption.AddAlias("-w");
+        _watchOption.AddAlias("-w");
 
-        var rebuildOption = new Option<bool>(
+        _rebuildOption = new Option<bool>(
             name: "--rebuild",
             description: "Clear existing index and rebuild from scratch");
-        rebuildOption.AddAlias("-r");
+        _rebuildOption.AddAlias("-r");
 
-        this.AddOption(agentOption);
-        this.AddOption(watchOption);
-        this.AddOption(rebuildOption);
+        this.AddOption(_agentOption);
+        this.AddOption(_watchOption);
+        this.AddOption(_rebuildOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
@@ -60,11 +65,47 @@ public class IndexCommand : Command
                 embeddingProvider,
                 CancellationToken.None);
         },
-        command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing agent option"),
-        command.Options[1] as Option<bool> ?? throw new InvalidOperationException("Missing watch option"),
-        command.Options[2] as Option<bool> ?? throw new InvalidOperationException("Missing rebuild option"));
+        command._agentOption,
+        command._watchOption,
+        command._rebuildOption);
 
         return command;
+    }
+
+    /// <summary>
+    /// Rebuilds the task journal search index for the current repository, if there is one.
+    /// <para>
+    /// Task journals are repo-local, so unlike the session index this covers only the repository
+    /// the command was run from. Running outside a repository is normal - the session index is
+    /// user-global and rebuilding it from anywhere is legitimate - so a missing repository is
+    /// reported and skipped rather than treated as a failure.
+    /// </para>
+    /// </summary>
+    private static async Task RebuildTaskSearchIndexAsync(CancellationToken ct)
+    {
+        TaskJournalStore store;
+        try
+        {
+            store = TaskJournalStore.ForRepository(Directory.GetCurrentDirectory());
+        }
+        catch (InvalidOperationException)
+        {
+            Console.WriteLine("Not inside a repository; skipping task journal index.");
+            return;
+        }
+
+        try
+        {
+            Console.WriteLine("Rebuilding task journal index...");
+            await store.RebuildSearchIndexAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The session index rebuild already succeeded, so report and carry on rather than
+            // failing the whole command.
+            Console.Error.WriteLine($"Warning: task journal index rebuild failed: {ex.Message}");
+            CommandOutcome.Fail(CommandOutcome.PartialFailure);
+        }
     }
 
     private static async Task ExecuteAsync(
@@ -103,6 +144,7 @@ public class IndexCommand : Command
         {
             Console.WriteLine("Clearing existing index...");
             await searchEngine.ClearIndexAsync(ct);
+            await RebuildTaskSearchIndexAsync(ct);
         }
 
         // Filter connectors based on agent type
@@ -221,10 +263,11 @@ public class IndexCommand : Command
                                 errors++;
                                 totalErrors++;
                             }
-                            if (config.VerboseLogging)
-                            {
-                                Console.Error.WriteLine($"  ✗ Error indexing session {session.Id}: {ex.Message}");
-                            }
+
+                            // Always report a failed session. Hiding these behind VerboseLogging
+                            // made a partially-failed index look identical to a clean one.
+                            Console.Error.WriteLine($"  ✗ Error indexing session {session.Id}: {ex.Message}");
+                            CommandOutcome.Fail(CommandOutcome.PartialFailure);
                         }
                     });
                 }
@@ -289,6 +332,7 @@ public class IndexCommand : Command
                             errors++;
                             totalErrors++;
                             Console.Error.WriteLine($"  ✗ Error indexing session {session.Id}: {ex.Message}");
+                            CommandOutcome.Fail(CommandOutcome.PartialFailure);
                         }
                     }
                 }
@@ -306,6 +350,7 @@ public class IndexCommand : Command
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"  Error accessing {connector.AgentType} sessions: {ex.Message}");
+                CommandOutcome.Fail();
             }
 
             Console.WriteLine();
@@ -361,9 +406,19 @@ public class IndexCommand : Command
                                 Console.WriteLine($"  ✓ Updated: {session.Id}");
                             }
                         }
-                        catch
+                        catch (OperationCanceledException)
                         {
-                            // Silently ignore errors in watch mode
+                            // Shutdown is not an indexing error.
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            // Watch mode runs unattended for hours. Swallowing here meant the
+                            // journal could stop updating at the first locked database and still
+                            // look healthy.
+                            Console.Error.WriteLine(
+                                $"  x Watch: failed to index session {session.Id}: {ex.Message}");
+                            CommandOutcome.Fail(CommandOutcome.PartialFailure);
                         }
                     }
                 }

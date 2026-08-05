@@ -1,5 +1,6 @@
 using AgentJournal.Core.Models;
 using AgentJournal.Core.Search;
+using AgentJournal.Core.Storage;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 
@@ -26,14 +27,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         }
 
         // Enable connection pooling and other optimizations
-        var builder = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
-            Pooling = true
-        };
-        _connectionString = builder.ToString();
+        _connectionString = SqliteConnectionFactory.BuildConnectionString(databasePath);
         _halfLifeDays = halfLifeDays;
     }
 
@@ -42,8 +36,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -96,7 +89,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
 
         // Enable WAL mode for concurrent read/write access
         var walCmd = connection.CreateCommand();
-        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
+        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000;";
         await walCmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -105,8 +98,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
     /// </summary>
     public async Task<KnowledgeEntry> SaveAsync(KnowledgeEntry entry, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -140,8 +132,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
     /// </summary>
     public async Task<KnowledgeEntry?> GetAsync(string id, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -171,8 +162,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         int maxResults = 10,
         CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         var results = new List<KnowledgeSearchResult>();
 
@@ -288,8 +278,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             throw new ArgumentException("ID cannot be null or empty", nameof(id));
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM knowledge WHERE id = @id;";
@@ -311,8 +300,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             return 0;
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
         try
@@ -360,8 +348,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             return 0;
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
         try
@@ -415,8 +402,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
             throw new ArgumentException("ID cannot be null or empty", nameof(id));
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
         try
@@ -454,8 +440,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
         int limit = 100,
         CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         var whereClauses = new List<string>();
         var parameters = new List<(string Name, object Value)>();
@@ -522,8 +507,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
     /// </summary>
     public async Task<KnowledgeStats> GetStatsAsync(CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         // Get lightweight data needed for stats (no content)
         await using var command = connection.CreateCommand();
@@ -591,8 +575,7 @@ public class SqliteKnowledgeRepository : IKnowledgeRepository
     /// </summary>
     public async Task<int> PruneExpiredAsync(double threshold = 0.05, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         // Calculate expiration date based on threshold
         // If threshold is 0.05, and half-life is 90 days, solve: 0.05 = 0.5^(days/90)
