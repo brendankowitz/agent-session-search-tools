@@ -1,5 +1,6 @@
 using AgentJournal.Core.Models;
 using AgentJournal.Core.Utilities;
+using AgentJournal.Core.Storage;
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
 
@@ -25,14 +26,7 @@ public class SqliteContentRepository : IContentRepository
             throw new ArgumentException("Half-life must be positive", nameof(halfLifeDays));
         }
 
-        var builder = new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
-            Pooling = true
-        };
-        _connectionString = builder.ToString();
+        _connectionString = SqliteConnectionFactory.BuildConnectionString(databasePath);
         _halfLifeDays = halfLifeDays;
     }
 
@@ -41,8 +35,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -96,7 +89,7 @@ public class SqliteContentRepository : IContentRepository
 
         // Enable WAL mode for concurrent read/write access
         var walCmd = connection.CreateCommand();
-        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
+        walCmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000;";
         await walCmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -105,8 +98,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<ContentEntry> AddAsync(ContentEntry entry, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -141,8 +133,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<bool> UpdateAsync(ContentEntry entry, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -173,8 +164,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<ContentEntry?> GetByIdAsync(string id, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -198,8 +188,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<ContentEntry?> GetBySourceAsync(string source, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -229,8 +218,7 @@ public class SqliteContentRepository : IContentRepository
         int maxResults = 10,
         CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         var results = new List<ContentSearchResult>();
 
@@ -354,8 +342,7 @@ public class SqliteContentRepository : IContentRepository
         int limit = 100,
         CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         var whereClauses = new List<string>();
         var parameters = new List<(string Name, object Value)>();
@@ -417,8 +404,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<bool> DeleteAsync(string source, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM content WHERE source = @source;";
@@ -439,8 +425,7 @@ public class SqliteContentRepository : IContentRepository
         bool deleteAll = false,
         CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         var whereClauses = new List<string>();
         var parameters = new List<(string Name, object Value)>();
@@ -506,8 +491,7 @@ public class SqliteContentRepository : IContentRepository
         bool countAll = false,
         CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         var whereClauses = new List<string>();
         var parameters = new List<(string Name, object Value)>();
@@ -567,8 +551,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<bool> ReinforceAsync(string source, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -588,8 +571,7 @@ public class SqliteContentRepository : IContentRepository
     /// </summary>
     public async Task<IReadOnlyList<ContentEntry>> GetExpiredAsync(double threshold = 0.05, CancellationToken ct = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await SqliteConnectionFactory.OpenAsync(_connectionString, ct);
 
         // Calculate expiration date based on threshold
         var expirationDays = _halfLifeDays * Math.Log(threshold) / Math.Log(0.5);

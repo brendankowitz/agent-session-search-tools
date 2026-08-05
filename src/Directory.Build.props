@@ -11,6 +11,38 @@
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!--
+      GitVersion uses LibGit2Sharp, which resolves a linked worktree to the main repository's
+      .git directory and then fails to parse its index ("invalid data in index"). That hard-fails
+      the whole build, so any contributor (or coding agent) working in a git worktree cannot build.
+      A linked worktree has .git as a *file* containing a gitdir pointer, so detect that case and
+      fall back to the placeholder version defined below. Set UseGitVersion explicitly to override.
+    -->
+    <_RepoGitPath>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../.git'))</_RepoGitPath>
+    <_IsLinkedWorktree Condition="Exists('$(_RepoGitPath)') AND !Exists('$(_RepoGitPath)/HEAD')">true</_IsLinkedWorktree>
+    <UseGitVersion Condition="'$(UseGitVersion)' == '' AND '$(_IsLinkedWorktree)' == 'true'">false</UseGitVersion>
+    <UseGitVersion Condition="'$(UseGitVersion)' == ''">true</UseGitVersion>
+    <DisableGitVersionTask Condition="'$(UseGitVersion)' != 'true'">true</DisableGitVersionTask>
+  </PropertyGroup>
+
+  <!--
+    Placeholder version for builds without GitVersion. Stated explicitly so an unversioned build is
+    identifiable as such, rather than silently inheriting MSBuild's 1.0.0 default and looking like
+    a real release.
+  -->
+  <PropertyGroup Condition="'$(UseGitVersion)' != 'true'">
+    <Version>0.0.0-local</Version>
+    <AssemblyVersion>0.0.0.0</AssemblyVersion>
+    <FileVersion>0.0.0.0</FileVersion>
+    <InformationalVersion>0.0.0-local</InformationalVersion>
+  </PropertyGroup>
+
+  <Target Name="WarnGitVersionDisabled" BeforeTargets="Build" Condition="'$(UseGitVersion)' != 'true' AND '$(_IsLinkedWorktree)' == 'true'">
+    <!-- Importance=high so it survives the default minimal verbosity of `dotnet build`. -->
+    <Message Importance="high" Text="GitVersion is disabled because this build runs from a linked git worktree. Version is 0.0.0-local. Pass -p:UseGitVersion=true to force it." />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
     <PackageReference Include="DotNet.ReproducibleBuilds" Version="1.2.25" PrivateAssets="All"/>

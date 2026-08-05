@@ -11,38 +11,53 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class ExportCommand : Command
 {
+    // Options are held as fields so handler binding is by reference. The previous code bound via
+    // positional option-index casts, where inserting an option silently rebound every handler
+    // argument after it.
+    private readonly Argument<string> _sessionIdArgument;
+    private readonly Option<string> _formatOption;
+    private readonly Option<string?> _outputOption;
+    private readonly Option<bool> _stdoutOption;
+    private readonly Option<int?> _lastOption;
+
     private ExportCommand() : base("export", "Export a session to a file")
     {
-        var sessionIdArgument = new Argument<string>(
+        _sessionIdArgument = new Argument<string>(
             name: "session-id",
             description: "ID of the session to export");
 
-        var formatOption = new Option<string>(
+        _formatOption = new Option<string>(
             name: "--format",
             getDefaultValue: () => "html",
             description: "Export format: html, md, or json");
-        formatOption.AddAlias("-f");
+        _formatOption.AddAlias("-f");
 
-        var outputOption = new Option<string?>(
+        _outputOption = new Option<string?>(
             name: "--output",
             description: "Output file path (default: session-{id}.{ext})");
-        outputOption.AddAlias("-o");
+        _outputOption.AddAlias("-o");
 
-        var stdoutOption = new Option<bool>(
+        _stdoutOption = new Option<bool>(
             name: "--stdout",
             description: "Write output to stdout instead of a file");
 
-        this.AddArgument(sessionIdArgument);
-        this.AddOption(formatOption);
-        this.AddOption(outputOption);
-        this.AddOption(stdoutOption);
+        _lastOption = new Option<int?>(
+            name: "--last",
+            description: "Export only the last N messages of the session");
+        _lastOption.AddAlias("-n");
+
+        this.AddArgument(_sessionIdArgument);
+        this.AddOption(_formatOption);
+        this.AddOption(_outputOption);
+        this.AddOption(_stdoutOption);
+        this.AddOption(_lastOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new ExportCommand();
 
-        command.SetHandler(async (sessionId, format, output, stdout) =>
+        command.SetHandler(async (sessionId, format, output, stdout, last) =>
         {
             var configService = serviceProvider.GetRequiredService<ConfigurationService>();
             var repository = serviceProvider.GetRequiredService<ISessionRepository>();
@@ -53,15 +68,17 @@ public class ExportCommand : Command
                 format,
                 output,
                 stdout,
+                last,
                 configService,
                 repository,
                 exporters,
                 CancellationToken.None);
         },
-        command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing session-id argument"),
-        command.Options[0] as Option<string> ?? throw new InvalidOperationException("Missing format option"),
-        command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing output option"),
-        command.Options[2] as Option<bool> ?? throw new InvalidOperationException("Missing stdout option"));
+        command._sessionIdArgument,
+        command._formatOption,
+        command._outputOption,
+        command._stdoutOption,
+        command._lastOption);
 
         return command;
     }
@@ -71,6 +88,7 @@ public class ExportCommand : Command
         string? format,
         string? output,
         bool stdout,
+        int? last,
         ConfigurationService configService,
         ISessionRepository repository,
         IEnumerable<IExporter> exporters,
@@ -91,6 +109,7 @@ public class ExportCommand : Command
         if (exporter == null)
         {
             Console.Error.WriteLine($"Error: No exporter found for format '{format}'");
+            CommandOutcome.Fail();
             return;
         }
 
@@ -106,7 +125,26 @@ public class ExportCommand : Command
         {
             Console.Error.WriteLine($"Error: Session '{sessionId}' not found");
             Console.Error.WriteLine("Use 'aj search' to find available sessions");
+            CommandOutcome.Fail(CommandOutcome.NotFound);
             return;
+        }
+
+        if (last.HasValue)
+        {
+            if (last.Value <= 0)
+            {
+                Console.Error.WriteLine("Error: --last must be greater than zero");
+                CommandOutcome.Fail();
+                return;
+            }
+
+            var totalMessages = session.MessageCount;
+            session = session.WithLastMessages(last.Value);
+
+            if (!stdout)
+            {
+                Console.WriteLine($"Messages: last {session.MessageCount} of {totalMessages}");
+            }
         }
 
         // Export the session
@@ -150,6 +188,7 @@ public class ExportCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error exporting session: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);

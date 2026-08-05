@@ -273,4 +273,44 @@ public class ClaudeCodeConnectorTests
             }
         }
     }
+
+    [Fact]
+    public void GetSessionPaths_UsesConfiguredProjectsPath()
+    {
+        // The configured ClaudeProjectsPath used to be ignored entirely: the connector always
+        // scanned ~/.claude/projects, so `config set ClaudeProjectsPath` was a no-op and indexing
+        // silently walked the real corpus instead of the requested directory.
+        var root = Path.Combine(Path.GetTempPath(), $"aj-claude-{Guid.NewGuid():N}");
+        var projectDirectory = Path.Combine(root, "demo");
+        Directory.CreateDirectory(projectDirectory);
+
+        // The connector only accepts GUID-shaped session file names.
+        var sessionFile = Path.Combine(projectDirectory, $"{Guid.NewGuid()}.jsonl");
+        File.WriteAllText(sessionFile, "{}");
+
+        try
+        {
+            var connector = new ClaudeCodeConnector(root);
+
+            var paths = connector.GetSessionPaths().ToList();
+
+            Assert.Equal(new[] { sessionFile }, paths);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void GetSessionPaths_ReturnsEmptyWhenConfiguredPathIsMissing()
+    {
+        // A configured-but-absent directory must yield nothing rather than silently falling back
+        // to the default location and indexing an unrelated corpus.
+        var missing = Path.Combine(Path.GetTempPath(), $"aj-claude-missing-{Guid.NewGuid():N}");
+
+        var connector = new ClaudeCodeConnector(missing);
+
+        Assert.Empty(connector.GetSessionPaths());
+    }
 }

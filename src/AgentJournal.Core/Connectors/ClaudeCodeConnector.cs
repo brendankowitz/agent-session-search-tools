@@ -12,6 +12,27 @@ public class ClaudeCodeConnector : IAgentConnector
 {
     public string AgentType => "claude-code";
 
+    private readonly string _projectsPath;
+
+    /// <summary>
+    /// Creates a connector rooted at the supplied Claude projects directory.
+    /// </summary>
+    /// <param name="projectsPath">
+    /// Directory to scan for session files. When null or blank the default
+    /// <c>~/.claude/projects</c> location is used. This is what the configured
+    /// <c>ClaudeProjectsPath</c> setting flows into - previously the default was hardcoded here,
+    /// so the setting had no effect at all.
+    /// </param>
+    public ClaudeCodeConnector(string? projectsPath = null)
+    {
+        _projectsPath = string.IsNullOrWhiteSpace(projectsPath)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".claude",
+                "projects")
+            : projectsPath;
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -23,16 +44,13 @@ public class ClaudeCodeConnector : IAgentConnector
 
     public IEnumerable<string> GetSessionPaths()
     {
-        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var claudeProjectsPath = Path.Combine(homeDir, ".claude", "projects");
-
-        if (!Directory.Exists(claudeProjectsPath))
+        if (!Directory.Exists(_projectsPath))
         {
             yield break;
         }
 
-        // Find all .jsonl files recursively in ~/.claude/projects/
-        foreach (var file in Directory.EnumerateFiles(claudeProjectsPath, "*.jsonl", SearchOption.AllDirectories))
+        // Find all .jsonl files recursively under the configured projects directory
+        foreach (var file in Directory.EnumerateFiles(_projectsPath, "*.jsonl", SearchOption.AllDirectories))
         {
             // Check if the file name looks like a session UUID (contains hyphens, typical of GUIDs)
             var fileName = Path.GetFileNameWithoutExtension(file);
@@ -85,8 +103,10 @@ public class ClaudeCodeConnector : IAgentConnector
                 }
                 catch (JsonException ex)
                 {
-                    // Log warning and skip malformed lines
-                    Console.WriteLine($"Warning: Failed to parse line in {sessionPath}: {ex.Message}");
+                    // Skip malformed lines. Diagnostics go to stderr: this code also runs inside the
+                    // MCP stdio server and behind `--robot`, where anything written to stdout would
+                    // corrupt the JSON-RPC stream / machine-readable output.
+                    Console.Error.WriteLine($"Warning: Failed to parse line in {sessionPath}: {ex.Message}");
                     continue;
                 }
             }
@@ -142,7 +162,8 @@ public class ClaudeCodeConnector : IAgentConnector
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error parsing session {sessionPath}: {ex.Message}");
+            // Report on stderr, not stdout - see note above about MCP stdio / --robot output.
+            Console.Error.WriteLine($"Error parsing session {sessionPath}: {ex.Message}");
             return null;
         }
     }

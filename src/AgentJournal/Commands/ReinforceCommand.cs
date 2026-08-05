@@ -11,36 +11,42 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class ReinforceCommand : Command
 {
+    private readonly Argument<string[]> _idsArgument;
+    private readonly Option<string?> _matchOption;
+    private readonly Option<string?> _projectOption;
+    private readonly Option<bool> _decayingOption;
+    private readonly Option<bool> _expiringOption;
+
     private ReinforceCommand() : base("reinforce", "Reinforce knowledge entries to reset decay timer")
     {
-        var idsArgument = new Argument<string[]>(
+        _idsArgument = new Argument<string[]>(
             name: "ids",
             description: "IDs of knowledge entries to reinforce",
             getDefaultValue: () => Array.Empty<string>());
 
-        var matchOption = new Option<string?>(
+        _matchOption = new Option<string?>(
             name: "--match",
             description: "Reinforce entries matching this query");
-        matchOption.AddAlias("-m");
+        _matchOption.AddAlias("-m");
 
-        var projectOption = new Option<string?>(
+        _projectOption = new Option<string?>(
             name: "--project",
             description: "Reinforce entries from this project");
-        projectOption.AddAlias("-p");
+        _projectOption.AddAlias("-p");
 
-        var decayingOption = new Option<bool>(
+        _decayingOption = new Option<bool>(
             name: "--decaying",
             description: "Reinforce all decaying entries (decay < 0.5)");
 
-        var expiringOption = new Option<bool>(
+        _expiringOption = new Option<bool>(
             name: "--expiring",
             description: "Reinforce all expiring entries (decay < 0.1)");
 
-        this.AddArgument(idsArgument);
-        this.AddOption(matchOption);
-        this.AddOption(projectOption);
-        this.AddOption(decayingOption);
-        this.AddOption(expiringOption);
+        this.AddArgument(_idsArgument);
+        this.AddOption(_matchOption);
+        this.AddOption(_projectOption);
+        this.AddOption(_decayingOption);
+        this.AddOption(_expiringOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
@@ -62,11 +68,11 @@ public class ReinforceCommand : Command
                 configService,
                 CancellationToken.None);
         },
-        command.Arguments[0] as Argument<string[]> ?? throw new InvalidOperationException("Missing ids argument"),
-        command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing match option"),
-        command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
-        command.Options[2] as Option<bool> ?? throw new InvalidOperationException("Missing decaying option"),
-        command.Options[3] as Option<bool> ?? throw new InvalidOperationException("Missing expiring option"));
+        command._idsArgument,
+        command._matchOption,
+        command._projectOption,
+        command._decayingOption,
+        command._expiringOption);
 
         return command;
     }
@@ -118,10 +124,12 @@ public class ReinforceCommand : Command
             Console.Error.WriteLine("  agent-journal reinforce abc123 def456");
             Console.Error.WriteLine("  agent-journal reinforce --match \"important\"");
             Console.Error.WriteLine("  agent-journal reinforce --decaying");
+            CommandOutcome.Fail();
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error reinforcing knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);

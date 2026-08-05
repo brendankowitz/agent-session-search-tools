@@ -170,7 +170,9 @@ public class LuceneSearchEngineTests : IDisposable
         var stats = await _searchEngine.GetIndexStatsAsync();
 
         // Assert
-        Assert.Equal(2, stats.DocumentCount); // 1 user message + 1 assistant message
+        // 1 user message + 1 assistant message + 1 session-level document. The session document
+        // carries the combined all_content text that used to be copied onto every message.
+        Assert.Equal(3, stats.DocumentCount);
         Assert.True(stats.SizeBytes > 0);
         Assert.Equal(1, stats.SessionCount);
     }

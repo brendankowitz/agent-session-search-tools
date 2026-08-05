@@ -330,6 +330,7 @@ public class ContentCommand : Command
             if (!Directory.Exists(validatedPath))
             {
                 Console.Error.WriteLine($"Error: Directory not found: {validatedPath}");
+                CommandOutcome.Fail(CommandOutcome.NotFound);
                 return;
             }
 
@@ -373,6 +374,7 @@ public class ContentCommand : Command
                     {
                         errors++;
                         Console.Error.WriteLine($"  ⊙ Skipped (too large): {Path.GetFileName(file)} - {ex.Message}");
+                        CommandOutcome.Fail(CommandOutcome.PartialFailure);
                         continue;
                     }
 
@@ -422,6 +424,7 @@ public class ContentCommand : Command
                 {
                     errors++;
                     Console.Error.WriteLine($"  ✗ Error indexing {Path.GetFileName(file)}: {ex.Message}");
+                    CommandOutcome.Fail(CommandOutcome.PartialFailure);
                 }
             }
 
@@ -442,6 +445,7 @@ public class ContentCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error indexing content: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -472,6 +476,7 @@ public class ContentCommand : Command
                 if (string.IsNullOrWhiteSpace(contentText))
                 {
                     Console.Error.WriteLine("Error: No content provided");
+                    CommandOutcome.Fail();
                     return;
                 }
             }
@@ -510,6 +515,7 @@ public class ContentCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error adding content: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -589,6 +595,7 @@ public class ContentCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error searching content: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -674,6 +681,7 @@ public class ContentCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error listing content: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -702,6 +710,7 @@ public class ContentCommand : Command
             {
                 Console.Error.WriteLine("Error: At least one removal criteria must be specified.");
                 Console.Error.WriteLine("Use --id, --source, --source-prefix, --project, or --all");
+                CommandOutcome.Fail();
                 return;
             }
 
@@ -759,6 +768,7 @@ public class ContentCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error removing content: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);
@@ -784,12 +794,14 @@ public class ContentCommand : Command
             }
             else
             {
-                Console.WriteLine($"Content not found: {source}");
+                Console.Error.WriteLine($"Content not found: {source}");
+                CommandOutcome.Fail(CommandOutcome.NotFound);
             }
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error reinforcing content: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);

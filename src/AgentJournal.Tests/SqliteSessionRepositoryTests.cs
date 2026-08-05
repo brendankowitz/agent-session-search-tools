@@ -175,6 +175,111 @@ public class SqliteSessionRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteSessionAsync_ShouldRemoveChildRows()
+    {
+        // Arrange
+        await _repository.InitializeAsync();
+        await _repository.SaveSessionAsync(CreateSessionWithToolCall("session-1", "msg-1", "tool-1"));
+
+        // Act
+        await _repository.DeleteSessionAsync("session-1");
+
+        // Assert - leftover children would collide on primary key when the session is re-indexed.
+        Assert.Equal(0, await CountRowsAsync("SELECT COUNT(*) FROM messages WHERE session_id = 'session-1'"));
+        Assert.Equal(0, await CountRowsAsync("SELECT COUNT(*) FROM tool_calls WHERE id = 'tool-1'"));
+    }
+
+    [Fact]
+    public async Task InitializeAsync_ShouldSweepOrphanedToolCalls()
+    {
+        // Arrange - reproduce the state left by builds that ran without foreign key enforcement:
+        // a tool_call whose parent message no longer exists.
+        await _repository.InitializeAsync();
+        await _repository.SaveSessionAsync(CreateSessionWithToolCall("session-1", "msg-1", "tool-1"));
+
+        await OrphanToolCallAsync("msg-1");
+
+        Assert.Equal(1, await CountRowsAsync("SELECT COUNT(*) FROM tool_calls WHERE id = 'tool-1'"));
+
+        // Act
+        await _repository.InitializeAsync();
+
+        // Assert
+        Assert.Equal(0, await CountRowsAsync("SELECT COUNT(*) FROM tool_calls WHERE id = 'tool-1'"));
+    }
+
+    [Fact]
+    public async Task SaveSessionAsync_ShouldSucceedWhenOrphanedToolCallExists()
+    {
+        // Arrange - an orphan sharing the incoming tool call's id previously caused
+        // "UNIQUE constraint failed: tool_calls.id" and left the session unindexed.
+        await _repository.InitializeAsync();
+        await _repository.SaveSessionAsync(CreateSessionWithToolCall("session-1", "msg-1", "tool-1"));
+
+        await OrphanToolCallAsync("msg-1");
+
+        // Act - re-index the same session.
+        await _repository.SaveSessionAsync(CreateSessionWithToolCall("session-1", "msg-1", "tool-1"));
+
+        // Assert
+        var retrieved = await _repository.GetSessionAsync("session-1");
+        Assert.NotNull(retrieved);
+        Assert.Single(retrieved.Messages);
+        Assert.NotNull(retrieved.Messages[0].ToolCalls);
+        Assert.Single(retrieved.Messages[0].ToolCalls!);
+    }
+
+    /// <summary>
+    /// Deletes a message with foreign keys explicitly disabled, reproducing the orphaned
+    /// <c>tool_calls</c> rows left behind by builds that predate foreign key enforcement.
+    /// </summary>
+    private async Task OrphanToolCallAsync(string messageId)
+    {
+        await using var connection = new SqliteConnection(
+            $"Data Source={_testDbPath};Foreign Keys=False");
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM messages WHERE id = @id;";
+        command.Parameters.AddWithValue("@id", messageId);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task<long> CountRowsAsync(string sql)
+    {
+        await using var connection = new SqliteConnection($"Data Source={_testDbPath}");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return (long)(await command.ExecuteScalarAsync())!;
+    }
+
+    private static Session CreateSessionWithToolCall(string sessionId, string messageId, string toolCallId) =>
+        new(
+            sessionId,
+            "claude-code",
+            "/test/project",
+            "main",
+            "1.0.0",
+            DateTime.UtcNow,
+            null,
+            null,
+            "Test session",
+            new[]
+            {
+                new Message(
+                    messageId,
+                    sessionId,
+                    MessageRole.Assistant,
+                    "Running a tool",
+                    null,
+                    DateTime.UtcNow,
+                    null,
+                    null,
+                    new[] { new ToolCall(toolCallId, messageId, "Bash", "{}", "ok", true) })
+            });
+
+    [Fact]
     public async Task SaveSessionAsync_ShouldUpdateExistingSession()
     {
         // Arrange

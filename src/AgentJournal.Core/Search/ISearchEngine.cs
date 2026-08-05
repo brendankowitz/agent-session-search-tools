@@ -30,13 +30,26 @@ public record SearchResult(
     Session Session,
     double Score,
     IReadOnlyList<Message>? MatchingMessages = null,
-    string? Highlight = null
+    string? Highlight = null,
+    IReadOnlyList<string>? MatchedMessageIds = null
 )
 {
     /// <summary>
     /// Gets whether there are matching messages
     /// </summary>
     public bool HasMatchingMessages => MatchingMessages != null && MatchingMessages.Count > 0;
+
+    /// <summary>
+    /// Whether the supplied message is one that actually matched the query, as opposed to one
+    /// included only as surrounding context.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MatchingMessages"/> is already context-expanded, so it cannot answer this on its
+    /// own. Callers that render results previously had no way to tell the two apart and reported
+    /// every context message as a match.
+    /// </remarks>
+    public bool IsMatch(Message message) =>
+        MatchedMessageIds != null && MatchedMessageIds.Contains(message.Id);
 }
 
 /// <summary>

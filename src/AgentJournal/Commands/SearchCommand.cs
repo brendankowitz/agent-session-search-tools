@@ -6,6 +6,7 @@ using AgentJournal.Core.Search;
 using AgentJournal.Core.Storage;
 using AgentJournal.Core.Models;
 using AgentJournal.Core.Knowledge;
+using AgentJournal.Core.Tasks;
 
 namespace AgentJournal.Commands;
 
@@ -14,95 +15,114 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class SearchCommand : Command
 {
+    /// <summary>
+    /// Caps how many messages are printed per result so a long context expansion cannot bury the
+    /// rest of the result list.
+    /// </summary>
+    private const int MaxRenderedMessages = 8;
+    private readonly Argument<string> _queryArgument;
+    private readonly Option<string> _modeOption;
+    private readonly Option<int> _contextOption;
+    private readonly Option<int> _maxResultsOption;
+    private readonly Option<string?> _agentOption;
+    private readonly Option<string?> _projectOption;
+    private readonly Option<bool> _robotOption;
+    private readonly Option<bool> _includeKnowledgeOption;
+    private readonly Option<bool> _includeTasksOption;
+
     private SearchCommand() : base("search", "Search indexed agent sessions")
     {
-        var queryArgument = new Argument<string>(
+        _queryArgument = new Argument<string>(
             name: "query",
             description: "Search query");
 
-        var modeOption = new Option<string>(
+        _modeOption = new Option<string>(
             name: "--mode",
             getDefaultValue: () => "lexical",
             description: "Search mode: lexical, semantic, or hybrid");
-        modeOption.AddAlias("-m");
+        _modeOption.AddAlias("-m");
 
-        var contextOption = new Option<int>(
+        _contextOption = new Option<int>(
             name: "--context",
             getDefaultValue: () => 3,
             description: "Number of surrounding messages to include in results");
-        contextOption.AddAlias("-c");
+        _contextOption.AddAlias("-c");
 
-        var maxResultsOption = new Option<int>(
+        _maxResultsOption = new Option<int>(
             name: "--max",
             getDefaultValue: () => 20,
             description: "Maximum number of results to return");
-        maxResultsOption.AddAlias("-n");
+        _maxResultsOption.AddAlias("-n");
 
-        var agentOption = new Option<string?>(
+        _agentOption = new Option<string?>(
             name: "--agent",
             description: "Filter by agent type (claude-code, copilot-cli)");
-        agentOption.AddAlias("-a");
+        _agentOption.AddAlias("-a");
 
-        var projectOption = new Option<string?>(
+        _projectOption = new Option<string?>(
             name: "--project",
             description: "Filter by project path");
-        projectOption.AddAlias("-p");
+        _projectOption.AddAlias("-p");
 
-        var robotOption = new Option<bool>(
+        _robotOption = new Option<bool>(
             name: "--robot",
             description: "Output results as JSON for scripting");
-        robotOption.AddAlias("-r");
+        _robotOption.AddAlias("-r");
 
-        var includeKnowledgeOption = new Option<bool>(
+        _includeKnowledgeOption = new Option<bool>(
             name: "--include-knowledge",
             getDefaultValue: () => false,
             description: "Include knowledge entries in search results");
-        includeKnowledgeOption.AddAlias("-k");
+        _includeKnowledgeOption.AddAlias("-k");
 
-        this.AddArgument(queryArgument);
-        this.AddOption(modeOption);
-        this.AddOption(contextOption);
-        this.AddOption(maxResultsOption);
-        this.AddOption(agentOption);
-        this.AddOption(projectOption);
-        this.AddOption(robotOption);
-        this.AddOption(includeKnowledgeOption);
+        _includeTasksOption = new Option<bool>(
+            name: "--include-tasks",
+            getDefaultValue: () => false,
+            description: "Include task journal notes and artifacts from the current repository");
+        _includeTasksOption.AddAlias("-t");
+
+        this.AddArgument(_queryArgument);
+        this.AddOption(_modeOption);
+        this.AddOption(_contextOption);
+        this.AddOption(_maxResultsOption);
+        this.AddOption(_agentOption);
+        this.AddOption(_projectOption);
+        this.AddOption(_robotOption);
+        this.AddOption(_includeKnowledgeOption);
+        this.AddOption(_includeTasksOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
     {
         var command = new SearchCommand();
 
-        command.SetHandler(async (query, mode, contextCount, maxResults, agentType, project, robot, includeKnowledge) =>
+        // Bound by name through the parse result rather than positionally: this command has more
+        // options than the positional SetHandler overloads accept, and positional binding silently
+        // mis-maps arguments when the list is reordered.
+        command.SetHandler(async context =>
         {
+            var parsed = context.ParseResult;
             var configService = serviceProvider.GetRequiredService<ConfigurationService>();
             var searchEngine = serviceProvider.GetRequiredService<ISearchEngine>();
             var repository = serviceProvider.GetRequiredService<ISessionRepository>();
             var knowledgeRepo = serviceProvider.GetService<IKnowledgeRepository>();
 
             await ExecuteAsync(
-                query,
-                mode,
-                contextCount,
-                maxResults,
-                agentType,
-                project,
-                robot,
-                includeKnowledge,
+                parsed.GetValueForArgument(command._queryArgument),
+                parsed.GetValueForOption(command._modeOption),
+                parsed.GetValueForOption(command._contextOption),
+                parsed.GetValueForOption(command._maxResultsOption),
+                parsed.GetValueForOption(command._agentOption),
+                parsed.GetValueForOption(command._projectOption),
+                parsed.GetValueForOption(command._robotOption),
+                parsed.GetValueForOption(command._includeKnowledgeOption),
+                parsed.GetValueForOption(command._includeTasksOption),
                 configService,
                 searchEngine,
                 repository,
                 knowledgeRepo,
-                CancellationToken.None);
-        },
-        command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing query argument"),
-        command.Options[0] as Option<string> ?? throw new InvalidOperationException("Missing mode option"),
-        command.Options[1] as Option<int> ?? throw new InvalidOperationException("Missing context option"),
-        command.Options[2] as Option<int> ?? throw new InvalidOperationException("Missing max option"),
-        command.Options[3] as Option<string?> ?? throw new InvalidOperationException("Missing agent option"),
-        command.Options[4] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
-        command.Options[5] as Option<bool> ?? throw new InvalidOperationException("Missing robot option"),
-        command.Options[6] as Option<bool> ?? throw new InvalidOperationException("Missing include-knowledge option"));
+                context.GetCancellationToken());
+        });
 
         return command;
     }
@@ -116,6 +136,7 @@ public class SearchCommand : Command
         string? project,
         bool robot,
         bool includeKnowledge,
+        bool includeTasks,
         ConfigurationService configService,
         ISearchEngine searchEngine,
         ISessionRepository repository,
@@ -136,6 +157,22 @@ public class SearchCommand : Command
             _ => SearchMode.Lexical
         };
 
+        if (includeKnowledge && searchMode != SearchMode.Lexical)
+        {
+            // The knowledge bank is FTS5-only, so the knowledge half of these results is lexical
+            // regardless of the requested mode. Say so rather than letting "Mode: Semantic" imply
+            // otherwise.
+            Console.Error.WriteLine(
+                $"Note: knowledge entries are matched lexically (FTS5); '{searchMode}' mode applies to sessions only.");
+        }
+
+        if (includeTasks && searchMode != SearchMode.Lexical)
+        {
+            // Same caveat as the knowledge bank: task journals are FTS5-only.
+            Console.Error.WriteLine(
+                $"Note: task journals are matched lexically (FTS5); '{searchMode}' mode applies to sessions only.");
+        }
+
         if (!robot)
         {
             Console.WriteLine($"Searching for: \"{query}\"");
@@ -144,11 +181,16 @@ public class SearchCommand : Command
             {
                 Console.WriteLine("Including: Knowledge entries");
             }
+            if (includeTasks)
+            {
+                Console.WriteLine("Including: Task journals (current repository)");
+            }
             Console.WriteLine();
         }
 
-        // Collect unified results from both sessions and knowledge
-        var unifiedResults = new List<UnifiedSearchResult>();
+        // Collect results per source. Sources are merged by rank, not by raw score, so each list
+        // is kept separate until fusion.
+        var resultsBySource = new List<List<UnifiedSearchResult>>();
 
         // Execute session search
         var sessionResults = await searchEngine.SearchAsync(query, searchMode, maxResults, contextCount, ct);
@@ -169,17 +211,16 @@ public class SearchCommand : Command
         }
 
         // Add session results to unified collection
-        unifiedResults.AddRange(filteredSessionResults.Select(UnifiedSearchResult.FromSession));
+        resultsBySource.Add(filteredSessionResults.Select(UnifiedSearchResult.FromSession).ToList());
 
         // Execute knowledge search if requested
         if (includeKnowledge)
         {
             if (knowledgeRepository == null)
             {
-                if (!robot)
-                {
-                    Console.WriteLine("Warning: Knowledge repository not available");
-                }
+                // stderr, not stdout: --robot callers parse stdout as JSON.
+                Console.Error.WriteLine("Warning: knowledge repository not available; results cover sessions only.");
+                CommandOutcome.Fail(CommandOutcome.PartialFailure);
             }
             else
             {
@@ -194,23 +235,47 @@ public class SearchCommand : Command
                         ct: ct);
 
                     // Add knowledge results to unified collection
-                    unifiedResults.AddRange(knowledgeResults.Select(UnifiedSearchResult.FromKnowledge));
+                    resultsBySource.Add(knowledgeResults.Select(UnifiedSearchResult.FromKnowledge).ToList());
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    if (!robot)
-                    {
-                        Console.WriteLine($"Warning: Knowledge search failed: {ex.Message}");
-                    }
+                    // Always report, and set a non-zero exit code: a caller that only checks the
+                    // exit code would otherwise treat a half-sourced answer as complete.
+                    Console.Error.WriteLine($"Warning: knowledge search failed: {ex.Message}");
+                    Console.Error.WriteLine("Results below cover sessions only.");
+                    CommandOutcome.Fail(CommandOutcome.PartialFailure);
                 }
             }
         }
 
-        // Sort all results by score and take top maxResults
-        var finalResults = unifiedResults
-            .OrderByDescending(r => r.Score)
-            .Take(maxResults)
-            .ToList();
+        // Execute task journal search if requested. Unlike sessions and knowledge, task journals
+        // live in the repository being worked on, so this half of the search is repo-scoped and is
+        // simply unavailable outside a repository.
+        if (includeTasks)
+        {
+            try
+            {
+                var taskStore = TaskJournalStore.ForRepository(Directory.GetCurrentDirectory());
+                var taskResults = await taskStore.SearchAsync(query, maxResults, ct);
+                resultsBySource.Add(taskResults.Select(UnifiedSearchResult.FromTask).ToList());
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Non-zero exit code for the same reason as knowledge: the caller asked for task
+                // coverage and did not get it.
+                Console.Error.WriteLine($"Warning: task journal search failed: {ex.Message}");
+                Console.Error.WriteLine("Results below do not include task journals.");
+                CommandOutcome.Fail(CommandOutcome.PartialFailure);
+            }
+        }
+
+        // Merge the sources by rank rather than by raw score. Lucene relevance and FTS5 bm25 are
+        // on different scales - in a small per-repository corpus bm25 collapses towards zero - so
+        // sorting the combined list by Score buries exact task and knowledge matches underneath
+        // weak session matches. Reciprocal Rank Fusion compares positions instead of magnitudes.
+        // With a single source it reproduces that source's order exactly, so an ordinary session
+        // search is unaffected.
+        var finalResults = RankFusion.Fuse(resultsBySource, maxResults);
 
         if (robot)
         {
@@ -255,6 +320,18 @@ public class SearchCommand : Command
                         highlight = r.Highlight
                     };
                 }
+                else if (r.Type == SearchResultType.Task && r.TryGetTask(out var task))
+                {
+                    return new
+                    {
+                        type = "task",
+                        journalName = task!.JournalName,
+                        taskNumber = task.TaskNumber,
+                        kind = task.Kind,
+                        excerpt = task.Excerpt,
+                        score = r.Score
+                    };
+                }
                 return null;
             }).Where(r => r != null);
 
@@ -287,6 +364,10 @@ public class SearchCommand : Command
                 {
                     DisplayKnowledgeResult(i + 1, entry!, result);
                 }
+                else if (result.Type == SearchResultType.Task && result.TryGetTask(out var task))
+                {
+                    DisplayTaskResult(i + 1, task!);
+                }
 
                 Console.WriteLine();
             }
@@ -311,14 +392,25 @@ public class SearchCommand : Command
 
         if (result.MatchingMessages != null && result.MatchingMessages.Count > 0)
         {
-            Console.WriteLine($"    Matching messages:");
+            // MatchingMessages is already context-expanded, so label it accordingly and mark which
+            // entries actually matched. Rendering it as "Matching messages" reported surrounding
+            // context as matches, leaving no way to tell what the query hit.
+            var header = contextCount > 0 ? "Matching messages (with context):" : "Matching messages:";
+            Console.WriteLine($"    {header}");
 
-            foreach (var message in result.MatchingMessages.Take(3))
+            foreach (var message in result.MatchingMessages.Take(MaxRenderedMessages))
             {
                 var preview = message.Content.Length > 150
                     ? message.Content[..150] + "..."
                     : message.Content;
-                Console.WriteLine($"      [{message.Role}] {preview}");
+                var marker = result.IsMatch(message) ? "→" : " ";
+                Console.WriteLine($"      {marker} [{message.Role}] {preview}");
+            }
+
+            var hidden = result.MatchingMessages.Count - MaxRenderedMessages;
+            if (hidden > 0)
+            {
+                Console.WriteLine($"      ... {hidden} more");
             }
         }
         else if (!string.IsNullOrWhiteSpace(result.Highlight))
@@ -328,39 +420,27 @@ public class SearchCommand : Command
                 : result.Highlight;
             Console.WriteLine($"    Preview: {preview}");
         }
-
-        if (contextCount > 0 && result.MatchingMessages != null && result.MatchingMessages.Count > 0)
-        {
-            Console.WriteLine($"    Context messages:");
-
-            // Get context messages around matches
-            var matchedIndices = result.MatchingMessages
-                .Select(m => session.Messages.ToList().IndexOf(m))
-                .Where(idx => idx >= 0)
-                .ToHashSet();
-
-            var contextMessages = session.Messages
-                .Select((msg, idx) => (msg, idx))
-                .Where(x => matchedIndices.Any(matchIdx =>
-                    Math.Abs(x.idx - matchIdx) <= contextCount))
-                .Take(5)
-                .ToList();
-
-            foreach (var (msg, idx) in contextMessages)
-            {
-                var isMatch = matchedIndices.Contains(idx);
-                var marker = isMatch ? "→" : " ";
-                var preview = msg.Content.Length > 100
-                    ? msg.Content[..100] + "..."
-                    : msg.Content;
-                Console.WriteLine($"      {marker} [{msg.Role}] {preview}");
-            }
-        }
     }
 
     /// <summary>
     /// Displays a knowledge search result
     /// </summary>
+    /// <summary>
+    /// Displays a task journal search result. Prints the journal name and task number so the
+    /// caller can follow up with `task show`.
+    /// </summary>
+    private static void DisplayTaskResult(int index, TaskSearchResult task)
+    {
+        // No score is printed here. Task results are ranked by FTS5 bm25 over a single
+        // repository's journal, where the corpus is small enough that IDF collapses and an exact
+        // match still scores near zero. Displayed beside Lucene session scores it reads as
+        // "irrelevant" for a result that RRF has just ranked highly. The ordinal conveys the
+        // ranking; --robot still carries the native score for callers that want it.
+        Console.WriteLine($"[{index}] Task: {task.JournalName} #{task.TaskNumber} ({task.Kind})");
+        Console.WriteLine($"    {task.Excerpt}");
+        Console.WriteLine($"    Show: agent-journal task show {task.JournalName} --task {task.TaskNumber}");
+    }
+
     private static void DisplayKnowledgeResult(int index, KnowledgeEntry entry, UnifiedSearchResult result)
     {
         Console.WriteLine($"[{index}] Knowledge: {entry.Id}");

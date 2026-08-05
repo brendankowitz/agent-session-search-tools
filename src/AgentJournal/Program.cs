@@ -60,10 +60,15 @@ public class Program
             ReinforceCommand.Create(serviceProvider),
             KnowledgeCommand.Create(serviceProvider),
             ContentCommand.Create(serviceProvider),
+            TaskCommand.Create(serviceProvider),
             McpCommand.Create(serviceProvider)
         };
 
-        return await rootCommand.InvokeAsync(args);
+        var parseExitCode = await rootCommand.InvokeAsync(args);
+
+        // A handler-recorded code is more specific than System.CommandLine's generic 1, so it wins
+        // when both are set. Parse failures leave CommandOutcome at 0, so those still surface.
+        return CommandOutcome.ExitCode != 0 ? CommandOutcome.ExitCode : parseExitCode;
     }
 
     private static void ConfigureServices(IServiceCollection services, AgentJournalConfig config)
@@ -72,9 +77,13 @@ public class Program
         services.AddSingleton(config);
         services.AddSingleton<ConfigurationService>();
 
-        // Connectors
-        services.AddSingleton<ClaudeCodeConnector>();
-        services.AddSingleton<CopilotCliConnector>();
+        // Connectors - scan the configured source directories. Registering these without the
+        // configured paths silently pinned both connectors to their default locations, which made
+        // ClaudeProjectsPath and CopilotSessionsPath inert.
+        services.AddSingleton(sp => new ClaudeCodeConnector(
+            sp.GetRequiredService<AgentJournalConfig>().ClaudeProjectsPath));
+        services.AddSingleton(sp => new CopilotCliConnector(
+            sp.GetRequiredService<AgentJournalConfig>().CopilotSessionsPath));
         services.AddSingleton<IEnumerable<IAgentConnector>>(sp => new IAgentConnector[]
         {
             sp.GetRequiredService<ClaudeCodeConnector>(),
@@ -102,7 +111,9 @@ public class Program
 
         // Search engines
         services.AddSingleton<LuceneSearchEngine>(sp =>
-            new LuceneSearchEngine(config.LuceneIndexPath));
+            new LuceneSearchEngine(
+                config.LuceneIndexPath,
+                sp.GetRequiredService<ISessionRepository>()));
 
         services.AddSingleton<VectorSearchEngine>(sp =>
             new VectorSearchEngine(

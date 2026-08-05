@@ -11,31 +11,36 @@ namespace AgentJournal.Commands;
 /// </summary>
 public class RememberCommand : Command
 {
+    private readonly Argument<string> _contentArgument;
+    private readonly Option<string?> _tagsOption;
+    private readonly Option<string?> _projectOption;
+    private readonly Option<string?> _sourceOption;
+
     private RememberCommand() : base("remember", "Store knowledge in the knowledge bank")
     {
-        var contentArgument = new Argument<string>(
+        _contentArgument = new Argument<string>(
             name: "content",
             description: "The knowledge content to remember");
 
-        var tagsOption = new Option<string?>(
+        _tagsOption = new Option<string?>(
             name: "--tags",
             description: "Comma-separated tags (e.g., code-style,linting)");
-        tagsOption.AddAlias("-t");
+        _tagsOption.AddAlias("-t");
 
-        var projectOption = new Option<string?>(
+        _projectOption = new Option<string?>(
             name: "--project",
             description: "Project name or path associated with this knowledge");
-        projectOption.AddAlias("-p");
+        _projectOption.AddAlias("-p");
 
-        var sourceOption = new Option<string?>(
+        _sourceOption = new Option<string?>(
             name: "--source",
             description: "Source of the knowledge (e.g., URL, document)");
-        sourceOption.AddAlias("-s");
+        _sourceOption.AddAlias("-s");
 
-        this.AddArgument(contentArgument);
-        this.AddOption(tagsOption);
-        this.AddOption(projectOption);
-        this.AddOption(sourceOption);
+        this.AddArgument(_contentArgument);
+        this.AddOption(_tagsOption);
+        this.AddOption(_projectOption);
+        this.AddOption(_sourceOption);
     }
 
     public static Command Create(IServiceProvider serviceProvider)
@@ -56,10 +61,10 @@ public class RememberCommand : Command
                 configService,
                 CancellationToken.None);
         },
-        command.Arguments[0] as Argument<string> ?? throw new InvalidOperationException("Missing content argument"),
-        command.Options[0] as Option<string?> ?? throw new InvalidOperationException("Missing tags option"),
-        command.Options[1] as Option<string?> ?? throw new InvalidOperationException("Missing project option"),
-        command.Options[2] as Option<string?> ?? throw new InvalidOperationException("Missing source option"));
+        command._contentArgument,
+        command._tagsOption,
+        command._projectOption,
+        command._sourceOption);
 
         return command;
     }
@@ -81,12 +86,14 @@ public class RememberCommand : Command
             if (string.IsNullOrWhiteSpace(content))
             {
                 Console.Error.WriteLine("Error: Content cannot be empty");
+                CommandOutcome.Fail();
                 return;
             }
 
             if (content.Length > 10_000)
             {
                 Console.Error.WriteLine("Error: Content exceeds maximum length of 10,000 characters");
+                CommandOutcome.Fail();
                 return;
             }
 
@@ -134,6 +141,7 @@ public class RememberCommand : Command
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error storing knowledge: {ex.Message}");
+            CommandOutcome.Fail();
             if (config.VerboseLogging)
             {
                 Console.Error.WriteLine(ex.StackTrace);

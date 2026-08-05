@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using AgentJournal.Core.Knowledge;
 using AgentJournal.Core.Search;
 using AgentJournal.Core.Storage;
@@ -23,6 +24,14 @@ public static class AgentJournalMcpServer
         IContentRepository contentRepository)
     {
         var builder = Host.CreateApplicationBuilder();
+
+        // The stdio transport uses stdout exclusively for JSON-RPC framing. The default host
+        // console logger also writes to stdout, which interleaves log text with protocol
+        // messages and corrupts the stream. Force every log level to stderr instead.
+        builder.Logging.AddConsole(options =>
+        {
+            options.LogToStandardErrorThreshold = LogLevel.Trace;
+        });
 
         // Register Agent Journal services
         builder.Services.AddSingleton(searchEngine);
